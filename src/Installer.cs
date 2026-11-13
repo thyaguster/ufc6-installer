@@ -70,7 +70,7 @@ internal static class Program
         }
         using (var form = new InstallerForm())
         {
-            if ((args.Length == 2 || args.Length == 5 || args.Length == 6 || args.Length == 7) && args[0] == "--preview")
+            if (args.Length >= 2 && args[0] == "--preview")
             {
                 form.Opacity = 0;
                 form.ShowInTaskbar = false;
@@ -83,7 +83,10 @@ internal static class Program
                     using (var graphics = form.CreateGraphics()) actual = graphics.DpiX / 96f;
                     form.ScalePreview(scale / actual);
                     form.ConfigureViewport(new Size(Int32.Parse(args[3]), Int32.Parse(args[4])), scale);
-                    if (args.Length == 7) form.ShowPage(Int32.Parse(args[6]));
+                    int previewPage;
+                    if (args.Length >= 7 && Int32.TryParse(args[6], out previewPage)) form.ShowPage(previewPage);
+                    if (Array.IndexOf(args, "offline") >= 0)
+                        form.SetOptionalToolsOnline(false, "No internet connection to GitHub · Optional tools are unavailable");
                     form.AutoScrollPosition = args.Length >= 6 && args[5] == "bottom" ? new Point(0, form.DisplayRectangle.Height) : Point.Empty;
                     Application.DoEvents();
                 }
@@ -688,6 +691,9 @@ internal sealed class InstallerForm : Form
     private readonly ButtonIconChoice xboxIcons = new ButtonIconChoice { Xbox = true };
     private readonly CheckBox installPortheon = new PillSwitch();
     private readonly CheckBox installOverlay = new PillSwitch();
+    private readonly Button overlayGithub = new SoftButton();
+    private readonly Button portheonGithub = new SoftButton();
+    private readonly Label optionalToolsStatus = new Label();
     private readonly PictureBox overlayLogo = new PictureBox();
     private readonly Button playNow = new SoftButton();
     private readonly PictureBox portheonLogo = new PictureBox();
@@ -696,6 +702,9 @@ internal sealed class InstallerForm : Form
     private string portheonExecutable;
     private bool launcherPending;
     private bool overlayPending;
+    private bool optionalToolsChecked;
+    private bool optionalToolsOnline = true;
+    private CancellationTokenSource optionalToolsCheck;
     private Process portheonSetup;
     private Label installedSize;
     private Label fileCount;
@@ -808,7 +817,7 @@ internal sealed class InstallerForm : Form
         var overlayInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; overlayPanel.Controls.Add(overlayInfo);
         LabelAt(overlayInfo, "Controller-friendly cheats, screenshots, Photo Mode, settings,\nand restart/quit actions on supported PORTHEON builds.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
         LabelAt(overlayPanel, "Choose PORTHEON's games\\UFC6 launcher folder in overlay setup.", 16, 122, 568, 22, 9, Color.White, FontStyle.Regular);
-        var overlayGithub = new SoftButton(); ButtonAt(overlayGithub, "Get from GitHub", 16, 146, 190, false); overlayGithub.Height = 32; overlayPanel.Controls.Add(overlayGithub);
+        ButtonAt(overlayGithub, "Get from GitHub", 16, 146, 190, false); overlayGithub.Height = 32; overlayPanel.Controls.Add(overlayGithub);
         overlayGithub.Click += delegate { Process.Start(new ProcessStartInfo(PortheonDownloader.OverlayReleasesPage) { UseShellExecute = true }); };
         installOverlay.Text = "Install it for me"; installOverlay.SetBounds(334, 140, 245, 28);
         installOverlay.Font = new Font("Segoe UI", 10, FontStyle.Bold); installOverlay.Checked = false; overlayPanel.Controls.Add(installOverlay);
@@ -826,8 +835,8 @@ internal sealed class InstallerForm : Form
         ButtonAt(playNow, "Play now", 16, 146, 108, true); playNow.Height = 32;
         launcherPanel.Controls.Add(playNow); playNow.Enabled = false;
         playNow.Click += delegate { OpenPortheon(); };
-        var official = new SoftButton(); ButtonAt(official, "Get from GitHub", 16, 146, 190, false); official.Height = 32;
-        official.Click += delegate { Process.Start(new ProcessStartInfo(PortheonDownloader.ReleasesPage) { UseShellExecute = true }); }; launcherPanel.Controls.Add(official);
+        ButtonAt(portheonGithub, "Get from GitHub", 16, 146, 190, false); portheonGithub.Height = 32;
+        portheonGithub.Click += delegate { Process.Start(new ProcessStartInfo(PortheonDownloader.ReleasesPage) { UseShellExecute = true }); }; launcherPanel.Controls.Add(portheonGithub);
         installPortheon.Text = "Install it for me"; installPortheon.SetBounds(334, 140, 245, 28);
         installPortheon.Font = new Font("Segoe UI", 10, FontStyle.Bold); installPortheon.Cursor = Cursors.Hand;
         installPortheon.Checked = false; launcherPanel.Controls.Add(installPortheon);
@@ -886,6 +895,9 @@ internal sealed class InstallerForm : Form
         pages[0].Controls.Add(packageCard); packageCard.Location = Point.Empty;
         pages[1].Controls.Add(overlayPanel); overlayPanel.Location = Point.Empty;
         pages[1].Controls.Add(launcherPanel); launcherPanel.Location = new Point(0, 200);
+        optionalToolsStatus.SetBounds(0, 394, 600, 22); optionalToolsStatus.Font = new Font("Segoe UI", 9);
+        optionalToolsStatus.TextAlign = ContentAlignment.MiddleCenter; optionalToolsStatus.ForeColor = Muted;
+        pages[1].Controls.Add(optionalToolsStatus);
         pages[2].Controls.Add(progressCard); progressCard.Location = new Point(0, 206);
         var summaryCard = new InfoCard { Size = new Size(600, 190) }; pages[2].Controls.Add(summaryCard);
         LabelAt(summaryCard, "YOUR INSTALLATION", 16, 12, 240, 24, 10, Color.White, FontStyle.Bold);
@@ -937,6 +949,38 @@ internal sealed class InstallerForm : Form
         AutoScrollPosition = Point.Empty;
         RefreshReadiness();
         if (Visible) ActiveControl = currentPage == 0 ? (Control)folder : install;
+        if (currentPage == 1 && !optionalToolsChecked) CheckOptionalToolsAvailability();
+    }
+
+    private async void CheckOptionalToolsAvailability()
+    {
+        optionalToolsChecked = true; optionalToolsStatus.Text = "Checking access to optional tools…";
+        overlayGithub.Enabled = portheonGithub.Enabled = installOverlay.Enabled = installPortheon.Enabled = false;
+        optionalToolsCheck = new CancellationTokenSource();
+        try
+        {
+            bool online = await Task.Run(delegate { return PortheonDownloader.CanReachGitHub(optionalToolsCheck.Token); });
+            if (!IsDisposed && !optionalToolsCheck.IsCancellationRequested) SetOptionalToolsOnline(online, null);
+        }
+        catch (OperationCanceledException) { }
+        finally { if (optionalToolsCheck != null) { optionalToolsCheck.Dispose(); optionalToolsCheck = null; } }
+    }
+
+    internal void SetOptionalToolsOnline(bool online, string message)
+    {
+        optionalToolsOnline = online;
+        overlayGithub.Enabled = portheonGithub.Enabled = installOverlay.Enabled = installPortheon.Enabled = online && !running && !complete;
+        if (online)
+        {
+            optionalToolsStatus.ForeColor = Green;
+            optionalToolsStatus.Text = "Optional tools available · Internet connection detected";
+        }
+        else
+        {
+            optionalToolsStatus.ForeColor = Accent;
+            optionalToolsStatus.Text = message ?? "No internet connection to GitHub · Optional tools are unavailable";
+        }
+        UpdateSummary();
     }
 
     private void UpdateSummary()
@@ -1056,8 +1100,8 @@ internal sealed class InstallerForm : Form
             playNow.Enabled = complete;
             performanceMode.Enabled = !complete;
             if (!complete) { back.Enabled = true; cancel.Text = "Close"; RefreshReadiness(); } else install.Enabled = true;
-            installPortheon.Enabled = !complete;
-            installOverlay.Enabled = !complete;
+            installPortheon.Enabled = !complete && optionalToolsOnline;
+            installOverlay.Enabled = !complete && optionalToolsOnline;
         }
         if (complete)
         {
@@ -1240,5 +1284,5 @@ internal sealed class InstallerForm : Form
         }
     }
     protected override void Dispose(bool disposing)
-    { if (disposing) { timer.Dispose(); if (portheonLogo.Image != null) portheonLogo.Image.Dispose(); if (overlayLogo.Image != null) overlayLogo.Image.Dispose(); if (portheonSetup != null) portheonSetup.Dispose(); } base.Dispose(disposing); }
+    { if (disposing) { timer.Dispose(); if (optionalToolsCheck != null) { optionalToolsCheck.Cancel(); optionalToolsCheck.Dispose(); } if (portheonLogo.Image != null) portheonLogo.Image.Dispose(); if (overlayLogo.Image != null) overlayLogo.Image.Dispose(); if (portheonSetup != null) portheonSetup.Dispose(); } base.Dispose(disposing); }
 }

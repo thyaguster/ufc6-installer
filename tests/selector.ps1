@@ -37,6 +37,16 @@ try {
     if ($overlay.Checked -or $overlay.AccessibleRole -ne 'CheckButton') { throw 'Overlay switch did not turn off or lost accessibility.' }
     if ($overlay.Parent.Top -ge $portheon.Parent.Top) { throw 'Overlay card should appear before PORTHEON.' }
     Write-Host 'PASS: overlay card precedes PORTHEON and its optional pill switch defaults off and toggles.'
+    $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(1))
+    $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($false, 'No internet connection to GitHub · Optional tools are unavailable'))
+    $status = $form.GetType().GetField('optionalToolsStatus', $flags).GetValue($form)
+    $overlayGithub = $form.GetType().GetField('overlayGithub', $flags).GetValue($form)
+    $portheonGithub = $form.GetType().GetField('portheonGithub', $flags).GetValue($form)
+    if ($overlay.Enabled -or $portheon.Enabled -or $overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'No internet connection') { throw 'Offline state did not disable optional tools or explain why.' }
+    $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
+    if (!$overlay.Enabled -or !$portheon.Enabled -or !$overlayGithub.Enabled -or !$portheonGithub.Enabled -or $status.Text -notmatch 'available') { throw 'Online state did not restore optional tools.' }
+    $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(0))
+    Write-Host 'PASS: optional tools clearly show offline status, disable Internet actions, and restore when GitHub is reachable.'
     $mode = $form.GetType().GetField('performanceMode', $flags).GetValue($form)
     if ($mode.SelectedItem -ne 'Balanced' -or !$mode.Enabled) { throw 'Performance selector is not enabled with Balanced selected.' }
     $property = $assembly.GetType('InstallationPerformance').GetProperty('Mode', [Reflection.BindingFlags]'NonPublic,Static')

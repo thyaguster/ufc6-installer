@@ -37,6 +37,9 @@ foreach ($page in @(1, 2)) {
         if ($process.ExitCode -ne 0) { throw "Scaled page preview failed: $page" }
     }
 }
+$offline = Join-Path $root '.build\installer-preview-offline-tools.png'
+$process = Start-Process -FilePath $exe -ArgumentList @('--preview', ('"' + $offline + '"'), '1', '1920', '1440', 'top', '1', 'offline') -WindowStyle Hidden -Wait -PassThru
+if ($process.ExitCode -ne 0 -or !(Test-Path -LiteralPath $offline)) { throw 'Offline optional-tools preview failed.' }
 $cases | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory 'render-cases.json') -Encoding UTF8
 Write-Host "Rendered all three pages at 100%, 125%, 150% and 200%, including a small-screen case: $directory"
 Write-Host 'These simulate scale factors for visual inspection; they do not change Windows display settings.'

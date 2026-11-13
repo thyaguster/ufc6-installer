@@ -41,6 +41,24 @@ internal static class PortheonDownloader
         return request;
     }
 
+    // This checks access to GitHub only. The optional-tools screen should still
+    // be useful when a player is offline: the game package itself never needs it.
+    internal static bool CanReachGitHub(CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        var request = Request("https://api.github.com/");
+        request.Method = "HEAD"; request.Timeout = 6000; request.ReadWriteTimeout = 6000;
+        using (cancellation.Register(request.Abort))
+        {
+            try
+            {
+                using (var response = (HttpWebResponse)request.GetResponse())
+                    return response.StatusCode >= HttpStatusCode.OK && response.StatusCode < HttpStatusCode.BadRequest;
+            }
+            catch (WebException) { cancellation.ThrowIfCancellationRequested(); return false; }
+        }
+    }
+
     internal static Asset SelectInstaller(Release release, bool overlay = false)
     {
         string product = overlay ? "UFC 6 Actions Overlay" : "PORTHEON";

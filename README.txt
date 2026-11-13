@@ -160,6 +160,9 @@ Download failure or cancellation keeps the completed game installation intact
 and offers a retry. The Official GitHub link also opens the latest release.
 Verified downloads are cached under %LOCALAPPDATA%\UFC6 Installer\Downloads.
 The game installation works offline when this optional download is unchecked.
+The Optional tools page checks access to GitHub when opened. If GitHub is not
+reachable, it shows an offline message and disables only those download controls;
+game setup and installation remain available offline.
 Install Alter Egos is checked by default. Selecting it applies the archive's
 PPSA23566 contents over the game files before installation is finalized;
 unchecking it leaves the base game files intact. Installed size, file count,
