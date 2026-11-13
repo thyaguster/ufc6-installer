@@ -1,0 +1,10 @@
+.build/
+dist/
+*.bin
+.vscode/
+compression-report.json
+compression-benchmark.json
+.secrets/
+*.private.xml
+*.dpapi
+*.rar

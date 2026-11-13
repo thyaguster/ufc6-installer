@@ -1,0 +1,15 @@
+EA SPORTS UFC 6 Folder Installer
+
+This source repository intentionally excludes game files, data.bin, Alter Egos,
+private package-signing material and generated installers.
+
+Third-party components and assets used by the installer:
+
+- 7-Zip: https://www.7-zip.org/ (embedded in generated setup.exe; license is
+  included by the build and displayed by the installer).
+- PORTHEON logo and project link: https://github.com/XAndromedaXR/PORTHEON
+- UFC 6 Actions Overlay logo and project link:
+  https://github.com/thyaguster/ufc6-actions-overlay
+
+See assets/README.txt for asset provenance. Check the relevant terms and
+licenses before redistributing generated packages.
