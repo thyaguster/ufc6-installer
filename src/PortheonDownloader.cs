@@ -11,9 +11,9 @@ internal static class PortheonDownloader
     internal const string ReleasesPage = "https://github.com/XAndromedaXR/PORTHEON/releases/latest";
     private const string ReleaseApi = "https://api.github.com/repos/XAndromedaXR/PORTHEON/releases/latest";
     private const string DownloadPrefix = "https://github.com/XAndromedaXR/PORTHEON/releases/download/";
-    internal const string OverlayReleasesPage = "https://github.com/thyaguster/ufc6-actions-overlay/releases/latest";
-    private const string OverlayApi = "https://api.github.com/repos/thyaguster/ufc6-actions-overlay/releases/latest";
-    private const string OverlayDownloadPrefix = "https://github.com/thyaguster/ufc6-actions-overlay/releases/download/";
+    internal const string OverlayReleasesPage = "https://github.com/thyaguster/ufc6-parsectagon-overlay/releases/latest";
+    private const string OverlayApi = "https://api.github.com/repos/thyaguster/ufc6-parsectagon-overlay/releases/latest";
+    private const string OverlayDownloadPrefix = "https://github.com/thyaguster/ufc6-parsectagon-overlay/releases/download/";
     private const string OptionalToolsConfigUrl = "https://raw.githubusercontent.com/thyaguster/ufc6-installer/main/optional-tools.json";
 
     internal sealed class OptionalToolsConfig
@@ -136,7 +136,7 @@ internal static class PortheonDownloader
     internal static Asset SelectInstaller(Release release, bool overlay = false)
     {
         string product = overlay ? "UFC 6 Parsectagon Overlay" : "PORTHEON";
-        string pattern = overlay ? @"^UFC6-Actions-Overlay-Setup-[A-Za-z0-9._-]+\.exe$" : @"^PORTHEON-[A-Za-z0-9._-]+-Setup\.exe$";
+        string pattern = overlay ? @"^UFC6-Parsectagon-Overlay-Setup-[A-Za-z0-9._-]+\.exe$" : @"^PORTHEON-[A-Za-z0-9._-]+-Setup\.exe$";
         string prefix = overlay ? OverlayDownloadPrefix : DownloadPrefix;
         if (release == null || release.draft || release.prerelease || release.assets == null)
             throw new IOException("GitHub did not return a stable " + product + " release.");

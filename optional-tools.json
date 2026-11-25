@@ -3,16 +3,16 @@
     {
       "enabled": true,
       "name": "UFC 6 Parsectagon Overlay",
-      "description": "Controller-friendly cheats, screenshots, Photo Mode, settings, and restart/quit actions on compatible UFC 6 engines.",
-      "note": "Choose a PORTHEON or Kyty UFC 6 engine folder when prompted.",
-      "instructions": "Choose PORTHEON's games\\UFC6 launcher folder or the Kyty UFC 6 engine folder containing UFC 6.exe. The overlay setup checks the engine and only installs when compatible. This is separate from the extracted game-data folder. Button icons can also be changed later in the overlay.",
+      "description": "In-game cheats, Photo Mode, screenshots, presets, and Parsectagon Lobby for supported UFC 6 engines.",
+      "note": "Choose PORTHEON's games folder or a Clean Kyty engine folder.",
+      "instructions": "Close UFC 6 and its launcher. Choose PORTHEON's games folder (to detect games), its games\\UFC6 folder, or a Clean Kyty folder containing kyty_emulator.exe. In overlay setup, keep UFC 6 selected, click Check, then Install / Update. The overlay checks engine compatibility before making changes. This is separate from the extracted game-data folder.",
       "installMode": "installer",
       "installOrder": 20,
       "chooseFolder": true,
-      "folderPrompt": "Choose PORTHEON's games\\UFC6 folder or your Kyty UFC 6 engine folder",
+      "folderPrompt": "Choose PORTHEON's games folder, games\\UFC6, or a Clean Kyty folder",
       "installerArguments": "--folder {selectedFolder}",
-      "repository": "thyaguster/ufc6-actions-overlay",
-      "installerPattern": "UFC6-Actions-Overlay-Setup-*.exe"
+      "repository": "thyaguster/ufc6-parsectagon-overlay",
+      "installerPattern": "UFC6-Parsectagon-Overlay-Setup-*.exe"
     },
     {
       "enabled": false,

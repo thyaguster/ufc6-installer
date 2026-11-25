@@ -825,8 +825,8 @@ internal sealed class InstallerForm : Form
         LabelAt(overlayPanel, "OPTIONAL TOOL", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
         overlayTitle = LabelAt(overlayPanel, "UFC 6 Parsectagon Overlay", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
         var overlayInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; overlayPanel.Controls.Add(overlayInfo);
-        overlayDescription = LabelAt(overlayInfo, "Controller-friendly cheats, screenshots, Photo Mode, settings,\nand restart/quit actions on compatible UFC 6 engines.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
-        overlayNote = LabelAt(overlayPanel, "Choose a PORTHEON or Kyty UFC 6 engine folder when prompted.", 16, 122, 568, 22, 9, Color.White, FontStyle.Regular);
+        overlayDescription = LabelAt(overlayInfo, "In-game cheats, Photo Mode, screenshots, presets, and\nParsectagon Lobby for supported UFC 6 engines.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
+        overlayNote = LabelAt(overlayPanel, "Choose PORTHEON's games folder or a Clean Kyty engine folder.", 16, 122, 568, 22, 9, Color.White, FontStyle.Regular);
         ButtonAt(overlayGithub, "Get from GitHub", 16, 146, 190, false); overlayGithub.Height = 32; overlayPanel.Controls.Add(overlayGithub);
         overlayGithub.Click += delegate { if (toolSlots[0] != null) Process.Start(new ProcessStartInfo(PortheonDownloader.ReleasesPageFor(toolSlots[0])) { UseShellExecute = true }); };
         ButtonAt(toolInstructions[0], "Instructions", 215, 146, 110, false); toolInstructions[0].Height = 32; overlayPanel.Controls.Add(toolInstructions[0]);
@@ -1021,7 +1021,7 @@ internal sealed class InstallerForm : Form
         launcherPanel.Visible = toolSlots[1] != null;
         launcherPanel.Top = toolSlots[0] == null ? 0 : 200;
         optionalToolsStatus.Top = toolSlots[0] != null && toolSlots[1] != null ? 394 : (toolSlots[0] != null || toolSlots[1] != null ? 194 : 12);
-        if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = toolSlots[0].repository == "thyaguster/ufc6-actions-overlay"; }
+        if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = toolSlots[0].repository == "thyaguster/ufc6-parsectagon-overlay"; }
         if (toolSlots[1] != null) { launcherTitle.Text = toolSlots[1].name; launcherDescription.Text = toolSlots[1].description; launcherNote.Text = toolSlots[1].note; portheonLogo.Visible = toolSlots[1].repository == "XAndromedaXR/PORTHEON"; }
         installOverlay.Visible = toolSlots[0] != null && toolSlots[0].installMode == "installer";
         installPortheon.Visible = toolSlots[1] != null && toolSlots[1].installMode == "installer";
@@ -1245,7 +1245,7 @@ internal sealed class InstallerForm : Form
                 string found = DetectOptionalTool(slot);
                 string gameFolder = FindOverlayGameFolder(selectedFolder ?? installedDestination);
                 if (found == null && slot.repository == "XAndromedaXR/PORTHEON") found = FindPortheon();
-                else if (found == null && slot.repository == "thyaguster/ufc6-actions-overlay" && IsOverlayInstalled(gameFolder)) found = gameFolder;
+                else if (found == null && slot.repository == "thyaguster/ufc6-parsectagon-overlay" && IsOverlayInstalled(gameFolder)) found = gameFolder;
                 if (!String.IsNullOrEmpty(found) && !ConfirmRerunSetup(product, found))
                 {
                     InstallLog.Write("Existing optional tool kept: " + slot.name + " at " + found);
@@ -1263,7 +1263,7 @@ internal sealed class InstallerForm : Form
                         if (slot.chooseFolder) arguments = arguments.Replace("{selectedFolder}", QuoteWindowsPath(selectedFolder));
                         info.Arguments = arguments;
                     }
-                    else if (slot.repository == "thyaguster/ufc6-actions-overlay" && gameFolder != null && Directory.Exists(gameFolder)) info.Arguments = "--folder \"" + gameFolder + "\"";
+                    else if (slot.repository == "thyaguster/ufc6-parsectagon-overlay" && gameFolder != null && Directory.Exists(gameFolder)) info.Arguments = "--folder \"" + gameFolder + "\"";
                     using (Process setup = Process.Start(info))
                     {
                         if (setup == null) throw new IOException("Could not open the setup for " + slot.name + ".");
@@ -1341,9 +1341,11 @@ internal sealed class InstallerForm : Form
     private static string FindOverlayGameFolder(string folder)
     {
         if (String.IsNullOrEmpty(folder)) return null;
-        if (File.Exists(Path.Combine(folder, "UFC 6.exe"))) return folder;
+        if (File.Exists(Path.Combine(folder, "UFC 6.exe")) || File.Exists(Path.Combine(folder, "UFC 6 novo.exe")) || File.Exists(Path.Combine(folder, "kyty_emulator.exe"))) return folder;
         string bin = Path.Combine(folder, "bin");
-        return File.Exists(Path.Combine(bin, "UFC 6.exe")) ? bin : null;
+        if (File.Exists(Path.Combine(bin, "UFC 6.exe"))) return bin;
+        string game = Path.Combine(folder, "UFC6", "bin");
+        return File.Exists(Path.Combine(game, "UFC 6.exe")) ? game : null;
     }
 
     private string FindPortheon()

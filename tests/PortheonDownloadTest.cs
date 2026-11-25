@@ -31,13 +31,13 @@ internal static class PortheonDownloadTest
         release = ValidRelease(); release.assets = new[] { release.assets[0], release.assets[0] }; Reject(release);
         release = ValidRelease(); release.assets[0].size = 0; Reject(release);
         var overlayRelease = new PortheonDownloader.Release { assets = new[] { new PortheonDownloader.Asset {
-            name = "UFC6-Actions-Overlay-Setup-0.9.18.exe", size = 123,
+            name = "UFC6-Parsectagon-Overlay-Setup-0.9.94.exe", size = 123,
             digest = "sha256:" + new String('b', 64),
-            browser_download_url = "https://github.com/thyaguster/ufc6-actions-overlay/releases/download/v0.9.18/UFC6-Actions-Overlay-Setup-0.9.18.exe"
+            browser_download_url = "https://github.com/thyaguster/ufc6-parsectagon-overlay/releases/download/v0.9.94/UFC6-Parsectagon-Overlay-Setup-0.9.94.exe"
         } } };
         if (PortheonDownloader.SelectInstaller(overlayRelease, true).name != overlayRelease.assets[0].name) throw new Exception("Valid overlay installer was not selected.");
         Reject(overlayRelease); // Overlay assets cannot be mistaken for PORTHEON.
-        overlayRelease.assets[0].browser_download_url = "https://github.com/another-owner/ufc6-actions-overlay/releases/download/v0.9.18/UFC6-Actions-Overlay-Setup-0.9.18.exe";
+        overlayRelease.assets[0].browser_download_url = "https://github.com/another-owner/ufc6-parsectagon-overlay/releases/download/v0.9.94/UFC6-Parsectagon-Overlay-Setup-0.9.94.exe";
         Reject(overlayRelease, true);
         Console.WriteLine("PASS: overlay asset selection is restricted to the author's repository and kept separate from PORTHEON.");
         string hashFixture = Path.Combine(args[0], "hash-fixture.txt");

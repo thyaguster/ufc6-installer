@@ -171,12 +171,12 @@ SHA-256 before opening it. If the configuration cannot be loaded, both optional
 tool cards stay hidden and game installation still works.
 UFC 6 Parsectagon Overlay has its own card above PORTHEON, with the project's icon,
 a short feature summary, GitHub link and optional install switch (off by default).
-It downloads the latest stable standalone setup from thyaguster/ufc6-actions-overlay
+It downloads the latest stable standalone setup from thyaguster/ufc6-parsectagon-overlay
 and verifies its GitHub asset SHA-256. Its own installer checks engine
 compatibility before changes.
 When both optional setups are selected, PORTHEON opens first. This installer waits
 for it to close before opening overlay setup. The UFC installer asks for
-either a PORTHEON games\UFC6 folder or a Kyty UFC 6 engine folder and passes
+either a PORTHEON games folder, games\UFC6 folder, or Clean Kyty folder and passes
 it to overlay setup. The overlay setup verifies engine compatibility before
 installing; selecting a folder does not bypass that check.
 Cancellation keeps the game and leaves any already-open external setup running.
