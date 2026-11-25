@@ -1,3 +1,20 @@
 {
-  "portheonEnabled": false
+  "slots": [
+    {
+      "enabled": true,
+      "name": "UFC 6 Actions Overlay",
+      "description": "Controller-friendly cheats, screenshots, Photo Mode, settings, and restart/quit actions on supported PORTHEON builds.",
+      "note": "Choose PORTHEON's games\\UFC6 launcher folder in overlay setup.",
+      "repository": "thyaguster/ufc6-actions-overlay",
+      "installerPattern": "UFC6-Actions-Overlay-Setup-*.exe"
+    },
+    {
+      "enabled": false,
+      "name": "PORTHEON",
+      "description": "A free launcher for UFC 1–6 and other PC ports. It finds your games and chooses settings for your PC.",
+      "note": "Already have it? Use Play now after installing the game.",
+      "repository": "XAndromedaXR/PORTHEON",
+      "installerPattern": "PORTHEON-*-Setup.exe"
+    }
+  ]
 }

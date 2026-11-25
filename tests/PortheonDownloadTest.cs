@@ -47,8 +47,13 @@ internal static class PortheonDownloadTest
         var cancellation = new CancellationTokenSource(); cancellation.Cancel();
         try { PortheonDownloader.GetLatest(cancellation.Token); throw new Exception("Cancellation was ignored."); }
         catch (OperationCanceledException) { }
-        if (PortheonDownloader.ParseOptionalToolsConfig("{\"portheonEnabled\":true}").portheonEnabled != true)
-            throw new Exception("PORTHEON GitHub switch was not parsed.");
+        string configJson = "{\"slots\":[{\"enabled\":true,\"name\":\"Another tool\",\"description\":\"A replacement\",\"note\":\"Run its setup\",\"repository\":\"example/project\",\"installerPattern\":\"Project-*.exe\"},{\"enabled\":false}]}";
+        var config = PortheonDownloader.ParseOptionalToolsConfig(configJson);
+        if (config.slots[0].repository != "example/project" || config.slots[1].enabled) throw new Exception("Configurable tool slots were not parsed.");
+        var alternateRelease = new PortheonDownloader.Release { assets = new[] { new PortheonDownloader.Asset { name="Project-1.exe", size=123, digest="sha256:"+new String('a',64), browser_download_url="https://github.com/example/project/releases/download/v1/Project-1.exe" } } };
+        if (PortheonDownloader.SelectInstaller(alternateRelease, config.slots[0]).name != "Project-1.exe") throw new Exception("Replacement project was not accepted.");
+        alternateRelease.assets[0].browser_download_url = "https://github.com/other/project/releases/download/v1/Project-1.exe";
+        try { PortheonDownloader.SelectInstaller(alternateRelease, config.slots[0]); throw new Exception("Wrong repository was accepted."); } catch (IOException) { }
         try { PortheonDownloader.ParseOptionalToolsConfig("not json"); throw new Exception("Invalid optional-tools configuration was accepted."); }
         catch (IOException) { }
         Console.WriteLine("PASS: official URL, stable release, asset selection, checksum requirements, hashing and pre-request cancellation.");

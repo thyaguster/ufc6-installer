@@ -5,6 +5,9 @@ $ErrorActionPreference = 'Stop'
 $form = [Activator]::CreateInstance($assembly.GetType('InstallerForm'), $true)
 try {
     $flags = [Reflection.BindingFlags]'NonPublic,Instance'
+    $configJson = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\optional-tools.json') -Raw
+    $configured = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]$configJson))
+    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($configured))
     $playStation = $form.GetType().GetField('playStationIcons', $flags).GetValue($form)
     $xbox = $form.GetType().GetField('xboxIcons', $flags).GetValue($form)
     if (!$playStation.Checked -or $xbox.Checked) { throw 'PlayStation was not selected by default.' }
@@ -52,7 +55,7 @@ try {
     $portheonGithub = $form.GetType().GetField('portheonGithub', $flags).GetValue($form)
     if ($overlay.Enabled -or $portheon.Enabled -or $overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'No internet connection') { throw 'Offline state did not disable optional tools or explain why.' }
     $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
-    if (!$overlay.Enabled -or $portheon.Enabled -or !$overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'Actions Overlay available') { throw 'Online state did not respect the disabled PORTHEON switch.' }
+    if (!$overlay.Enabled -or $portheon.Enabled -or !$overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'loaded from GitHub') { throw 'Online state did not respect the disabled second tool slot.' }
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(0))
     Write-Host 'PASS: optional tools clearly show offline status, disable Internet actions, and restore when GitHub is reachable.'
     $mode = $form.GetType().GetField('performanceMode', $flags).GetValue($form)

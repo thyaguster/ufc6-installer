@@ -18,7 +18,16 @@ internal static class PortheonDownloader
 
     internal sealed class OptionalToolsConfig
     {
-        public bool portheonEnabled { get; set; }
+        public ToolSlot[] slots { get; set; }
+    }
+    internal sealed class ToolSlot
+    {
+        public bool enabled { get; set; }
+        public string name { get; set; }
+        public string description { get; set; }
+        public string note { get; set; }
+        public string repository { get; set; }
+        public string installerPattern { get; set; }
     }
 
     internal sealed class Release
@@ -71,7 +80,18 @@ internal static class PortheonDownloader
         OptionalToolsConfig config;
         try { config = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 }.Deserialize<OptionalToolsConfig>(json); }
         catch (Exception ex) { throw new IOException("Optional-tools configuration is invalid.", ex); }
-        if (config == null) throw new IOException("Optional-tools configuration is invalid.");
+        if (config == null || config.slots == null || config.slots.Length != 2) throw new IOException("Optional-tools configuration requires exactly two slots.");
+        foreach (ToolSlot slot in config.slots)
+        {
+            if (slot == null) throw new IOException("Optional-tools slot is invalid.");
+            if (!slot.enabled) continue;
+            if (String.IsNullOrWhiteSpace(slot.name) || slot.name.Length > 42 || String.IsNullOrWhiteSpace(slot.description) || slot.description.Length > 160 ||
+                String.IsNullOrWhiteSpace(slot.note) || slot.note.Length > 110 || slot.repository == null ||
+                !Regex.IsMatch(slot.repository, @"\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z") ||
+                slot.installerPattern == null || !Regex.IsMatch(slot.installerPattern, @"\A[A-Za-z0-9._*-]+\.exe\z", RegexOptions.IgnoreCase) ||
+                slot.installerPattern.IndexOf('*') != slot.installerPattern.LastIndexOf('*'))
+                throw new IOException("Optional-tools slot has invalid metadata.");
+        }
         return config;
     }
 
@@ -116,6 +136,39 @@ internal static class PortheonDownloader
         }
         if (selected == null) throw new IOException("The latest " + product + " release has no Windows setup executable. Use the official releases page.");
         return selected;
+    }
+
+    internal static Asset SelectInstaller(Release release, ToolSlot slot)
+    {
+        if (release == null || release.draft || release.prerelease || release.assets == null) throw new IOException("GitHub did not return a stable release for " + slot.name + ".");
+        string prefix = "https://github.com/" + slot.repository + "/releases/download/";
+        string pattern = "^" + Regex.Escape(slot.installerPattern).Replace("\\*", "[A-Za-z0-9._-]+") + "$";
+        Asset selected = null;
+        foreach (Asset asset in release.assets)
+        {
+            if (asset.name == null || !Regex.IsMatch(asset.name, pattern, RegexOptions.IgnoreCase)) continue;
+            if (selected != null || asset.size <= 0 || asset.size > 4L * 1024 * 1024 * 1024 ||
+                asset.browser_download_url == null || !asset.browser_download_url.StartsWith(prefix, StringComparison.Ordinal) ||
+                !asset.browser_download_url.EndsWith("/" + asset.name, StringComparison.Ordinal) ||
+                asset.digest == null || !Regex.IsMatch(asset.digest, @"^sha256:[a-fA-F0-9]{64}$"))
+                throw new IOException("Release installer for " + slot.name + " is ambiguous or unverified.");
+            selected = asset;
+        }
+        if (selected == null) throw new IOException("No matching verified setup found for " + slot.name + ".");
+        return selected;
+    }
+
+    internal static string ReleasesPageFor(ToolSlot slot) { return "https://github.com/" + slot.repository + "/releases/latest"; }
+
+    internal static Asset GetLatest(CancellationToken cancellation, ToolSlot slot)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        var request = Request("https://api.github.com/repos/" + slot.repository + "/releases/latest");
+        using (cancellation.Register(request.Abort))
+        using (var response = request.GetResponse())
+        using (var input = response.GetResponseStream())
+        using (var reader = new StreamReader(input))
+            return SelectInstaller(new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }.Deserialize<Release>(reader.ReadToEnd()), slot);
     }
 
     internal static Asset GetLatest(CancellationToken cancellation, bool overlay = false)
@@ -198,6 +251,39 @@ internal static class PortheonDownloader
             if (File.Exists(target)) File.Delete(target);
             File.Move(temporary, target);
             progress(100, product + " installer verified."); return target;
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    internal static string DownloadLatest(string cache, CancellationToken cancellation, Action<int, string> progress, ToolSlot slot)
+    {
+        progress(0, "Checking latest " + slot.name + " release...");
+        Asset asset = GetLatest(cancellation, slot);
+        Directory.CreateDirectory(cache);
+        string target = Path.Combine(cache, asset.name), expected = asset.digest.Substring(7);
+        if (File.Exists(target) && new FileInfo(target).Length == asset.size && String.Equals(HashFile(target, cancellation), expected, StringComparison.OrdinalIgnoreCase)) return target;
+        string temporary = Path.Combine(cache, ".setup-" + Guid.NewGuid().ToString("N") + ".partial");
+        try
+        {
+            var request = Request(asset.browser_download_url);
+            using (cancellation.Register(request.Abort))
+            using (var response = request.GetResponse())
+            using (var input = response.GetResponseStream())
+            using (var output = File.Create(temporary))
+            {
+                byte[] buffer = new byte[256 * 1024]; long received = 0; int count;
+                while ((count = input.Read(buffer, 0, buffer.Length)) != 0)
+                {
+                    cancellation.ThrowIfCancellationRequested(); received += count;
+                    if (received > asset.size) throw new IOException("Download exceeded published size.");
+                    output.Write(buffer, 0, count); progress((int)(received * 95 / asset.size), "Downloading " + slot.name + "...");
+                }
+                if (received != asset.size) throw new IOException("Incomplete download for " + slot.name + ".");
+            }
+            if (!String.Equals(HashFile(temporary, cancellation), expected, StringComparison.OrdinalIgnoreCase)) throw new IOException("SHA-256 verification failed for " + slot.name + ".");
+            cancellation.ThrowIfCancellationRequested();
+            if (File.Exists(target)) File.Delete(target);
+            File.Move(temporary, target); return target;
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }

@@ -145,9 +145,13 @@ keyboard/accessibility behavior. Play now is visibly grey until it is available.
 Alter Egos uses a pill switch (on by default). Action buttons use rounded corners
 with hover, pressed, keyboard-focus and disabled states. PlayStation symbols are
 optically sized at 16 px within the same spacing as the 20 px Xbox circles.
-The PORTHEON card is disabled by default. Its availability is controlled by
-optional-tools.json in the public GitHub repository; set portheonEnabled to true
-there to show its card, GitHub link and optional download switch in future runs.
+The two optional-tool cards are populated by optional-tools.json in the public
+GitHub repository. Each slot can be disabled or given another name, description,
+note, GitHub owner/repository and installer filename pattern without rebuilding
+setup.exe. The first slot defaults to Actions Overlay; the second is disabled.
+The installer validates the GitHub asset URL, filename, size and published
+SHA-256 before opening it. If the configuration cannot be loaded, both optional
+tool cards stay hidden and game installation still works.
 UFC 6 Actions Overlay has its own card above PORTHEON, with the project's icon,
 a short feature summary, GitHub link and optional install switch (off by default).
 It downloads the latest stable standalone setup from thyaguster/ufc6-actions-overlay
