@@ -8,7 +8,8 @@ param(
     [ValidateSet('Normal', 'Ultra')][string]$Compression = 'Normal',
     [string]$SevenZipDirectory = 'C:\Program Files\7-Zip',
     [string]$AlterEgosArchive = "$PSScriptRoot\PPSA23566.rar",
-    [string]$XboxIconsPatcher = 'C:\Scripts\kytyps5-ufc6-xbox-buttons-mod\release\UFC6-Xbox-Icons\UFC6-Xbox-Icons.exe'
+    [string]$XboxIconsPatcher = 'C:\Scripts\kytyps5-ufc6-xbox-buttons-mod\release\UFC6-Xbox-Icons\UFC6-Xbox-Icons.exe',
+    [ValidateRange(0, 1024)][int]$SplitSizeGiB = 0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -143,12 +144,41 @@ if ($Mode -ne 'Pack') {
             $extraResources += "/resource:$XboxIconsPatcher,xbox-icons.exe"
         } else { $settings | Add-Member -NotePropertyName XboxIconsBytes -NotePropertyValue 0 -Force }
         $settings | ConvertTo-Json | Set-Content -LiteralPath $setupManifest -Encoding UTF8
-        & $compiler /nologo /target:winexe /platform:x64 /optimize+ "/win32icon:$(Join-Path $PSScriptRoot 'assets\installer.ico')" "/out:$temporarySetup" "/win32manifest:$(Join-Path $PSScriptRoot 'src\app.manifest')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/resource:$setupManifest,installer.json" "/resource:$publicKeyPath,package-public-key.xml" "/resource:$(Join-Path $PSScriptRoot 'assets\portheon-logo.png'),portheon-logo.png" "/resource:$(Join-Path $PSScriptRoot 'assets\overlay-logo.png'),overlay-logo.png" "/resource:$archiveTool,7z.exe" "/resource:$(Join-Path $SevenZipDirectory '7z.dll'),7z.dll" "/resource:$(Join-Path $SevenZipDirectory 'License.txt'),7zip-license.txt" @extraResources (Join-Path $PSScriptRoot 'src\Package.cs') (Join-Path $PSScriptRoot 'src\SignedPackage.cs') (Join-Path $PSScriptRoot 'src\Installer.cs') (Join-Path $PSScriptRoot 'src\PortheonDownloader.cs') (Join-Path $PSScriptRoot 'src\InstallLog.cs') (Join-Path $PSScriptRoot 'src\InstallationPerformance.cs') (Join-Path $PSScriptRoot 'src\AssemblyInfo.cs')
+        & $compiler /nologo /target:winexe /platform:x64 /optimize+ "/win32icon:$(Join-Path $PSScriptRoot 'assets\installer.ico')" "/out:$temporarySetup" "/win32manifest:$(Join-Path $PSScriptRoot 'src\app.manifest')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/resource:$setupManifest,installer.json" "/resource:$publicKeyPath,package-public-key.xml" "/resource:$(Join-Path $PSScriptRoot 'assets\portheon-logo.png'),portheon-logo.png" "/resource:$(Join-Path $PSScriptRoot 'assets\overlay-logo.png'),overlay-logo.png" "/resource:$archiveTool,7z.exe" "/resource:$(Join-Path $SevenZipDirectory '7z.dll'),7z.dll" "/resource:$(Join-Path $SevenZipDirectory 'License.txt'),7zip-license.txt" @extraResources (Join-Path $PSScriptRoot 'src\Package.cs') (Join-Path $PSScriptRoot 'src\PackageInput.cs') (Join-Path $PSScriptRoot 'src\SignedPackage.cs') (Join-Path $PSScriptRoot 'src\Installer.cs') (Join-Path $PSScriptRoot 'src\PortheonDownloader.cs') (Join-Path $PSScriptRoot 'src\InstallLog.cs') (Join-Path $PSScriptRoot 'src\InstallationPerformance.cs') (Join-Path $PSScriptRoot 'src\AssemblyInfo.cs')
         if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
         Move-Item -LiteralPath $temporarySetup -Destination (Join-Path $OutputDirectory 'setup.exe') -Force
     } finally {
         if (Test-Path -LiteralPath $temporarySetup) { Remove-Item -LiteralPath $temporarySetup }
         if (Test-Path -LiteralPath $setupManifest) { Remove-Item -LiteralPath $setupManifest }
     }
+}
+if ($SplitSizeGiB -gt 0) {
+    if ($Mode -eq 'Setup') { throw 'SplitSizeGiB is for a distribution containing data.bin; Setup mode never changes package files.' }
+    if (!(Test-Path -LiteralPath $archive -PathType Leaf)) { throw 'No data.bin was produced to split.' }
+    [long]$partSize = [long]$SplitSizeGiB * 1GB
+    if ((Get-Item -LiteralPath $archive).Length -le $partSize) { throw 'data.bin is not larger than the requested part size; distribute the single file instead.' }
+    $header = Join-Path $OutputDirectory 'data.bin.header'
+    if (Test-Path -LiteralPath $header) { throw 'data.bin.header already exists in the output folder.' }
+    $input = [IO.File]::OpenRead($archive)
+    try {
+        $headerOutput = [IO.File]::Create($header)
+        try {
+            $headerBytes = New-Object byte[] 65536; $read = 0
+            while ($read -lt $headerBytes.Length) { $count = $input.Read($headerBytes, $read, $headerBytes.Length - $read); if ($count -le 0) { throw 'data.bin does not contain a complete signed header.' }; $read += $count }
+            $headerOutput.Write($headerBytes, 0, $headerBytes.Length)
+        } finally { $headerOutput.Dispose() }
+        $buffer = New-Object byte[] (4MB); $index = 1
+        while ($input.Position -lt $input.Length) {
+            $part = Join-Path $OutputDirectory ('data.bin.' + $index.ToString('D3'))
+            $output = [IO.File]::Create($part)
+            try {
+                [long]$remaining = [Math]::Min($partSize, $input.Length - $input.Position)
+                while ($remaining -gt 0) { $count = $input.Read($buffer, 0, [Math]::Min($buffer.Length, $remaining)); if ($count -le 0) { throw 'Could not read data.bin while splitting.' }; $output.Write($buffer, 0, $count); $remaining -= $count }
+            } finally { $output.Dispose() }
+            ++$index
+        }
+    } catch { if (Test-Path -LiteralPath $header) { Remove-Item -LiteralPath $header -Force }; throw } finally { $input.Dispose() }
+    Remove-Item -LiteralPath $archive -Force
+    Write-Host "Split package into data.bin.header and $($index - 1) payload parts of up to $SplitSizeGiB GiB."
 }
 Write-Host "Finished: $OutputDirectory"

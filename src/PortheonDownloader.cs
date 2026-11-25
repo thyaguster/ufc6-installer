@@ -14,6 +14,12 @@ internal static class PortheonDownloader
     internal const string OverlayReleasesPage = "https://github.com/thyaguster/ufc6-actions-overlay/releases/latest";
     private const string OverlayApi = "https://api.github.com/repos/thyaguster/ufc6-actions-overlay/releases/latest";
     private const string OverlayDownloadPrefix = "https://github.com/thyaguster/ufc6-actions-overlay/releases/download/";
+    private const string OptionalToolsConfigUrl = "https://raw.githubusercontent.com/thyaguster/ufc6-installer/main/optional-tools.json";
+
+    internal sealed class OptionalToolsConfig
+    {
+        public bool portheonEnabled { get; set; }
+    }
 
     internal sealed class Release
     {
@@ -56,6 +62,36 @@ internal static class PortheonDownloader
                     return response.StatusCode >= HttpStatusCode.OK && response.StatusCode < HttpStatusCode.BadRequest;
             }
             catch (WebException) { cancellation.ThrowIfCancellationRequested(); return false; }
+        }
+    }
+
+    internal static OptionalToolsConfig ParseOptionalToolsConfig(string json)
+    {
+        if (String.IsNullOrWhiteSpace(json) || json.Length > 16 * 1024) throw new IOException("Optional-tools configuration is invalid.");
+        OptionalToolsConfig config;
+        try { config = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 }.Deserialize<OptionalToolsConfig>(json); }
+        catch (Exception ex) { throw new IOException("Optional-tools configuration is invalid.", ex); }
+        if (config == null) throw new IOException("Optional-tools configuration is invalid.");
+        return config;
+    }
+
+    internal static OptionalToolsConfig GetOptionalToolsConfig(CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        var request = Request(OptionalToolsConfigUrl); request.Timeout = 6000; request.ReadWriteTimeout = 6000;
+        using (cancellation.Register(request.Abort))
+        {
+            try
+            {
+                using (var response = request.GetResponse())
+                using (var input = response.GetResponseStream())
+                using (var reader = new StreamReader(input))
+                {
+                    string json = reader.ReadToEnd(); cancellation.ThrowIfCancellationRequested();
+                    return ParseOptionalToolsConfig(json);
+                }
+            }
+            catch (WebException) { cancellation.ThrowIfCancellationRequested(); throw; }
         }
     }
 

@@ -14,7 +14,7 @@ $patcher = Join-Path $ModRoot 'UFC6-Xbox-Icons.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Cannot create a compatible private fixture.' }
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $harness = Join-Path $testRoot 'icon-test.exe'
-& $compiler /nologo /target:exe /platform:x64 /main:IconIntegrationTest "/out:$harness" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/resource:$patcher,xbox-icons.exe" (Join-Path $root 'src\Package.cs') (Join-Path $root 'src\SignedPackage.cs') (Join-Path $root 'src\Installer.cs') (Join-Path $root 'src\PortheonDownloader.cs') (Join-Path $root 'src\InstallLog.cs') (Join-Path $root 'src\InstallationPerformance.cs') (Join-Path $PSScriptRoot 'IconIntegrationTest.cs')
+& $compiler /nologo /target:exe /platform:x64 /main:IconIntegrationTest "/out:$harness" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/resource:$patcher,xbox-icons.exe" (Join-Path $root 'src\Package.cs') (Join-Path $root 'src\PackageInput.cs') (Join-Path $root 'src\SignedPackage.cs') (Join-Path $root 'src\Installer.cs') (Join-Path $root 'src\PortheonDownloader.cs') (Join-Path $root 'src\InstallLog.cs') (Join-Path $root 'src\InstallationPerformance.cs') (Join-Path $PSScriptRoot 'IconIntegrationTest.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Cannot compile integration harness.' }
 & $harness $fixture "$testRoot\tools" (Get-FileHash -LiteralPath $patcher).Hash
 if ($LASTEXITCODE -ne 0) { throw 'Installer integration failed.' }

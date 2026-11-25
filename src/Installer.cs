@@ -23,6 +23,7 @@ internal static class Program
     internal static readonly Assembly Assembly = Assembly.GetExecutingAssembly();
     internal static readonly string BaseDirectory = AppDomain.CurrentDomain.BaseDirectory;
     internal static Package Package;
+    internal static PackageInput PackageSource;
     internal static string PackageError;
     private static string ResourceText(string name)
     { using (var reader = new StreamReader(Assembly.GetManifestResourceStream(name))) return reader.ReadToEnd(); }
@@ -32,10 +33,11 @@ internal static class Program
         try
         {
             var settings = new JavaScriptSerializer().Deserialize<InstallerSettings>(ResourceText("installer.json"));
-            Package = SignedPackage.Read(Path.Combine(BaseDirectory, "data.bin"), ResourceText("package-public-key.xml"));
+            PackageSource = PackageInput.Open(BaseDirectory);
+            using (var input = PackageSource.OpenRead()) Package = SignedPackage.Read(input, ResourceText("package-public-key.xml"));
             Package.XboxIconsBytes = settings.XboxIconsBytes; Package.XboxIconsSha256 = settings.XboxIconsSha256;
         }
-        catch (Exception ex) { PackageError = ex is FileNotFoundException || ex is DirectoryNotFoundException ? "Place a signed data.bin beside setup.exe to continue." : ex.Message; }
+        catch (Exception ex) { PackageSource = null; PackageError = ex is FileNotFoundException || ex is DirectoryNotFoundException ? "Place data.bin, or data.bin.header with every numbered part, beside setup.exe to continue." : ex.Message; }
     }
 
     [STAThread]
@@ -118,13 +120,12 @@ internal static class Program
         InstallLog.Write("Game version=" + Package.GameVersion + "; destination=" + requestedDestination);
         InstallLog.Write("Options: AlterEgos=" + installAlterEgos + "; ButtonIcons=" + (xboxIcons ? "Xbox" : "PlayStation") + "; DownloadPortheon=" + InstallLog.PortheonRequested + "; DownloadOverlay=" + InstallLog.OverlayRequested);
         InstallLog.Write("Installation mode=" + InstallationPerformance.Mode);
-        InstallLog.Write("Source archive=" + Path.Combine(BaseDirectory, "data.bin") + "; ExpectedSHA256=" + Package.Sha256);
+        InstallLog.Write("Source package=" + (PackageSource != null && PackageSource.IsSplit ? "numbered data.bin parts" : "data.bin") + "; ExpectedSHA256=" + Package.Sha256);
         bool addon = installAlterEgos && Package.AlterEgosArchiveBytes > 0;
         if (xboxIcons && Package.XboxIconsBytes == 0) throw new IOException("Xbox button icons are not included in this package.");
-        string archive = Path.Combine(BaseDirectory, "data.bin");
-        if (!File.Exists(archive)) throw new IOException("Place data.bin beside setup.exe, then try again.");
-        if (new FileInfo(archive).Length != Package.ArchiveBytes)
-            throw new IOException("data.bin has the wrong size. Use the data.bin supplied with this installer.");
+        if (PackageSource == null) throw new IOException("Place data.bin, or data.bin.header with every numbered part, beside setup.exe, then try again.");
+        if (PackageSource.Length != Package.ArchiveBytes)
+            throw new IOException("The data.bin package has the wrong size. Restore the supplied file or every numbered part.");
         string destination = Path.GetFullPath(requestedDestination).TrimEnd(Path.DirectorySeparatorChar);
         string parent = Path.GetDirectoryName(destination);
         if (String.IsNullOrEmpty(parent) || destination == Path.GetPathRoot(destination).TrimEnd('\\'))
@@ -135,11 +136,13 @@ internal static class Program
         if (drive.AvailableFreeSpace < RequiredSpace(addon, xboxIcons))
             throw new IOException("There is not enough free space. Allow " + Size(RequiredSpace(addon, xboxIcons)) + ".");
 
-        progress(0, "Checking game data...");
-        // Keep the verified archive locked against replacement until extraction ends.
-        using (var source = new FileStream(archive, FileMode.Open, FileAccess.Read, FileShare.Read))
         using (var sha = SHA256.Create())
         {
+            string archive = PackageSource.ArchivePath;
+            progress(0, "Checking game data...");
+            // Keep the verified archive locked against replacement until extraction ends.
+            using (var source = PackageSource.OpenRead())
+            {
             Package current = SignedPackage.Read(source, ResourceText("package-public-key.xml"));
             if (current.ManifestSha256 != Package.ManifestSha256)
                 throw new IOException("data.bin changed after setup opened. Restart the installer to review the new package.");
@@ -169,7 +172,7 @@ internal static class Program
                     using (var input = Assembly.GetManifestResourceStream(file))
                     using (var output = File.Create(Path.Combine(tools, file))) input.CopyTo(output);
                 progress(10, "Installing game files...");
-                Extract(tools, archive, staging, "7z", cancellation,
+                Extract(tools, archive, staging, PackageSource.IsSplit ? "" : "7z", cancellation,
                     delegate(int percent) { progress(Math.Min(addon ? 89 : 99, 10 + percent * (addon ? 79 : 89) / 100), "Installing game files..."); }, null, true);
                 InstallLog.Write("Base game extracted; archive entry CRC checks passed.");
                 if (addon)
@@ -178,7 +181,7 @@ internal static class Program
                     progress(90, "Installing Alter Egos...");
                     if (Package.PayloadVersion != 2 || Package.AlterEgosArchivePath != "__ufc6_installer__\\alter-egos.rar")
                         throw new IOException("The optional payload metadata is invalid.");
-                    Extract(tools, archive, tools, "7z", cancellation, delegate { }, Package.AlterEgosArchivePath);
+                    Extract(tools, archive, tools, PackageSource.IsSplit ? "" : "7z", cancellation, delegate { }, Package.AlterEgosArchivePath);
                     string addonArchive = Path.Combine(tools, Package.AlterEgosArchivePath);
                     using (var input = File.OpenRead(addonArchive))
                     using (var hash = SHA256.Create())
@@ -219,6 +222,7 @@ internal static class Program
                 if (Directory.Exists(staging)) Directory.Delete(staging, true);
                 if (Directory.Exists(tools)) Directory.Delete(tools, true);
                 InstallLog.Write("Temporary extraction/tool directories cleaned.");
+            }
             }
         }
     }
@@ -697,6 +701,8 @@ internal sealed class InstallerForm : Form
     private readonly PictureBox overlayLogo = new PictureBox();
     private readonly Button playNow = new SoftButton();
     private readonly PictureBox portheonLogo = new PictureBox();
+    private InfoCard overlayPanel;
+    private InfoCard launcherPanel;
     private HeroPanel hero;
     private bool condensed;
     private string portheonExecutable;
@@ -704,6 +710,7 @@ internal sealed class InstallerForm : Form
     private bool overlayPending;
     private bool optionalToolsChecked;
     private bool optionalToolsOnline = true;
+    private bool portheonToolEnabled;
     private CancellationTokenSource optionalToolsCheck;
     private Process portheonSetup;
     private Label installedSize;
@@ -715,6 +722,7 @@ internal sealed class InstallerForm : Form
     private bool running;
     private bool complete;
     private bool attempted;
+    private bool existingGameDetected;
     private int phase = -1;
     private double phasePercent;
     private string installedDestination;
@@ -801,13 +809,14 @@ internal sealed class InstallerForm : Form
         alterEgos.Cursor = Cursors.Hand; optionPanel.Controls.Add(alterEgos);
         LabelAt(optionPanel, alterEgos.Enabled ? "Apply the included Alter Egos files to the game." : "Not included in this package.", 16, 42, 550, 22, 9, Muted, FontStyle.Regular);
         alterEgos.CheckedChanged += delegate { RefreshReadiness(); };
-        var iconPanel = new InfoCard { Location = new Point(280, 440), Size = new Size(600, 104) }; Controls.Add(iconPanel);
+        var iconPanel = new InfoCard { Location = new Point(280, 440), Size = new Size(600, 116) }; Controls.Add(iconPanel);
         LabelAt(iconPanel, "IN-GAME BUTTON ICONS", 16, 8, 560, 20, 9, Muted, FontStyle.Bold);
         playStationIcons.Text = "PlayStation"; playStationIcons.SetBounds(16, 30, 278, 64); playStationIcons.Checked = true;
         xboxIcons.Text = "Xbox"; xboxIcons.SetBounds(306, 30, 278, 64); xboxIcons.Enabled = Program.Package.XboxIconsBytes > 0;
         foreach (var choice in new[] { playStationIcons, xboxIcons }) iconPanel.Controls.Add(choice);
+        LabelAt(iconPanel, "Button icons can be changed later in UFC 6 Actions Overlay.", 16, 96, 568, 17, 8, Muted, FontStyle.Regular);
         xboxIcons.CheckedChanged += delegate { RefreshReadiness(); };
-        var overlayPanel = new InfoCard { Location = new Point(280, 556), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(overlayPanel);
+        overlayPanel = new InfoCard { Location = new Point(280, 556), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(overlayPanel);
         overlayLogo.SetBounds(16, 14, 56, 56); overlayLogo.SizeMode = PictureBoxSizeMode.Zoom;
         using (var stream = Program.Assembly.GetManifestResourceStream("overlay-logo.png"))
         using (var image = Image.FromStream(stream)) overlayLogo.Image = new Bitmap(image);
@@ -822,7 +831,7 @@ internal sealed class InstallerForm : Form
         installOverlay.Text = "Install it for me"; installOverlay.SetBounds(334, 140, 245, 28);
         installOverlay.Font = new Font("Segoe UI", 10, FontStyle.Bold); installOverlay.Checked = false; overlayPanel.Controls.Add(installOverlay);
         LabelAt(overlayPanel, "Latest release · Internet required", 334, 167, 245, 17, 8, Muted, FontStyle.Regular);
-        var launcherPanel = new InfoCard { Location = new Point(280, 756), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(launcherPanel);
+        launcherPanel = new InfoCard { Location = new Point(280, 756), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(launcherPanel);
         portheonLogo.SetBounds(16, 14, 56, 56); portheonLogo.SizeMode = PictureBoxSizeMode.Zoom;
         using (var stream = Program.Assembly.GetManifestResourceStream("portheon-logo.png"))
         using (var image = Image.FromStream(stream)) portheonLogo.Image = new Bitmap(image);
@@ -898,6 +907,7 @@ internal sealed class InstallerForm : Form
         optionalToolsStatus.SetBounds(0, 394, 600, 22); optionalToolsStatus.Font = new Font("Segoe UI", 9);
         optionalToolsStatus.TextAlign = ContentAlignment.MiddleCenter; optionalToolsStatus.ForeColor = Muted;
         pages[1].Controls.Add(optionalToolsStatus);
+        ApplyPortheonToolSwitch(false);
         pages[2].Controls.Add(progressCard); progressCard.Location = new Point(0, 206);
         var summaryCard = new InfoCard { Size = new Size(600, 190) }; pages[2].Controls.Add(summaryCard);
         LabelAt(summaryCard, "YOUR INSTALLATION", 16, 12, 240, 24, 10, Color.White, FontStyle.Bold);
@@ -944,7 +954,7 @@ internal sealed class InstallerForm : Form
         }
         steps.CurrentStep = currentPage; steps.AccessibleName = "Step " + (currentPage + 1) + " of 3: " + new[] { "Game setup", "Optional tools", "Install" }[currentPage]; steps.Invalidate();
         pageTitle.Text = new[] { "Make room for the fight.", "Make it your game.", "Ready for the fight." }[currentPage];
-        install.Text = currentPage == 2 ? "Install game" : "Next";
+        install.Text = currentPage == 2 ? (existingGameDetected ? "Set up optional tools" : "Install game") : "Next";
         back.Enabled = currentPage > 0;
         AutoScrollPosition = Point.Empty;
         RefreshReadiness();
@@ -960,7 +970,18 @@ internal sealed class InstallerForm : Form
         try
         {
             bool online = await Task.Run(delegate { return PortheonDownloader.CanReachGitHub(optionalToolsCheck.Token); });
-            if (!IsDisposed && !optionalToolsCheck.IsCancellationRequested) SetOptionalToolsOnline(online, null);
+            bool portheonEnabled = false;
+            string message = null;
+            if (online)
+            {
+                try { portheonEnabled = await Task.Run(delegate { return PortheonDownloader.GetOptionalToolsConfig(optionalToolsCheck.Token).portheonEnabled; }); }
+                catch (Exception ex) { InstallLog.Write("Optional tools configuration unavailable: " + ex.Message); message = "Actions Overlay available · PORTHEON is disabled by configuration"; }
+            }
+            if (!IsDisposed && !optionalToolsCheck.IsCancellationRequested)
+            {
+                ApplyPortheonToolSwitch(portheonEnabled);
+                SetOptionalToolsOnline(online, message);
+            }
         }
         catch (OperationCanceledException) { }
         finally { if (optionalToolsCheck != null) { optionalToolsCheck.Dispose(); optionalToolsCheck = null; } }
@@ -969,29 +990,41 @@ internal sealed class InstallerForm : Form
     internal void SetOptionalToolsOnline(bool online, string message)
     {
         optionalToolsOnline = online;
-        overlayGithub.Enabled = portheonGithub.Enabled = installOverlay.Enabled = installPortheon.Enabled = online && !running && !complete;
+        overlayGithub.Enabled = installOverlay.Enabled = online && !running && !complete;
+        portheonGithub.Enabled = installPortheon.Enabled = portheonToolEnabled && online && !running && !complete;
         if (online)
         {
             optionalToolsStatus.ForeColor = Green;
-            optionalToolsStatus.Text = "Optional tools available · Internet connection detected";
+            optionalToolsStatus.Text = message ?? (portheonToolEnabled ? "Optional tools available · Internet connection detected" : "Actions Overlay available · PORTHEON is disabled by configuration");
         }
         else
         {
             optionalToolsStatus.ForeColor = Accent;
             optionalToolsStatus.Text = message ?? "No internet connection to GitHub · Optional tools are unavailable";
         }
-        UpdateSummary();
+        if (summaryDestination != null) UpdateSummary();
+    }
+
+    internal void ApplyPortheonToolSwitch(bool enabled)
+    {
+        portheonToolEnabled = enabled;
+        if (!enabled) { installPortheon.Checked = false; launcherPending = false; }
+        if (launcherPanel != null) launcherPanel.Visible = enabled;
+        if (optionalToolsStatus != null) optionalToolsStatus.Top = enabled ? 394 : 194;
+        if (!running && !complete && portheonGithub != null)
+            portheonGithub.Enabled = installPortheon.Enabled = enabled && optionalToolsOnline;
+        if (summaryDestination != null) UpdateSummary();
     }
 
     private void UpdateSummary()
     {
         summaryDestination.Text = folder.Text;
-        summaryAlterEgos.Text = alterEgos.Checked ? "Included" : "Off";
-        summaryIcons.Text = xboxIcons.Checked ? "Xbox" : "PlayStation";
+        summaryAlterEgos.Text = existingGameDetected ? "Unchanged" : alterEgos.Checked ? "Included" : "Off";
+        summaryIcons.Text = existingGameDetected ? "Unchanged" : xboxIcons.Checked ? "Xbox" : "PlayStation";
         summaryTools.Text = (installOverlay.Checked ? "Actions Overlay" : "") +
             (installOverlay.Checked && installPortheon.Checked ? " + " : "") + (installPortheon.Checked ? "PORTHEON" : "") +
             (!installOverlay.Checked && !installPortheon.Checked ? "None selected" : "");
-        summaryTotals.Text = installedSize.Text + " installed  ·  " + fileCount.Text + " files";
+        summaryTotals.Text = existingGameDetected ? "Existing game · no game files changed" : installedSize.Text + " installed  ·  " + fileCount.Text + " files";
     }
 
     internal void ScalePreview(float ratio)
@@ -1020,28 +1053,43 @@ internal sealed class InstallerForm : Form
     private void RefreshReadiness()
     {
         if (running || complete) return;
-        installedSize.Text = (xboxIcons.Checked ? "~" : "") + Program.Size(Program.Package.UnpackedBytes + (alterEgos.Checked ? Program.Package.AlterEgosInstalledDeltaBytes : 0) + (xboxIcons.Checked ? Program.XboxOverhead : 0));
-        fileCount.Text = (Program.Package.FileCount + (alterEgos.Checked ? Program.Package.AlterEgosFileDelta : 0) + (xboxIcons.Checked ? 2 : 0)).ToString("N0");
+        existingGameDetected = false;
         bool valid = false;
         try
         {
             if (String.IsNullOrWhiteSpace(folder.Text)) throw new IOException("Choose a destination folder.");
             string path = Path.GetFullPath(folder.Text);
             if (String.IsNullOrEmpty(Path.GetDirectoryName(path.TrimEnd(Path.DirectorySeparatorChar)))) throw new IOException("Choose a game folder, rather than a drive root.");
-            var drive = new DriveInfo(Path.GetPathRoot(path));
-            long required = Program.RequiredSpace(alterEgos.Checked, xboxIcons.Checked);
-            space.Text = Program.Size(drive.AvailableFreeSpace) + " free on " + drive.Name + "  ·  " + Program.Size(required) + " required";
-            space.ForeColor = Green;
-            if (drive.AvailableFreeSpace < required) throw new IOException("Not enough space on this drive. Choose another destination.");
-            if (Directory.Exists(path) || File.Exists(path)) throw new IOException("This folder already exists. Choose a new folder name.");
+            if (Directory.Exists(path))
+            {
+                if (!IsUfc6Folder(path)) throw new IOException("This folder already exists. Choose a new folder name.");
+                existingGameDetected = true;
+                space.Text = "Existing UFC 6 installation detected · Game files will not be changed";
+                space.ForeColor = Green;
+            }
+            else
+            {
+                if (File.Exists(path)) throw new IOException("This path is an existing file. Choose a new folder name.");
+                var drive = new DriveInfo(Path.GetPathRoot(path));
+                long required = Program.RequiredSpace(alterEgos.Checked, xboxIcons.Checked);
+                space.Text = Program.Size(drive.AvailableFreeSpace) + " free on " + drive.Name + "  ·  " + Program.Size(required) + " required";
+                space.ForeColor = Green;
+                if (drive.AvailableFreeSpace < required) throw new IOException("Not enough space on this drive. Choose another destination.");
+            }
             valid = true;
         }
         catch (Exception ex)
         { space.Text = ex.Message; space.ForeColor = Accent; }
-        string archive = Path.Combine(Program.BaseDirectory, "data.bin");
+        alterEgos.Enabled = !existingGameDetected && Program.Package.AlterEgosArchiveBytes > 0;
+        playStationIcons.Enabled = !existingGameDetected;
+        xboxIcons.Enabled = !existingGameDetected && Program.Package.XboxIconsBytes > 0;
+        installedSize.Text = existingGameDetected ? "Unchanged" : (xboxIcons.Checked ? "~" : "") + Program.Size(Program.Package.UnpackedBytes + (alterEgos.Checked ? Program.Package.AlterEgosInstalledDeltaBytes : 0) + (xboxIcons.Checked ? Program.XboxOverhead : 0));
+        fileCount.Text = existingGameDetected ? "Unchanged" : (Program.Package.FileCount + (alterEgos.Checked ? Program.Package.AlterEgosFileDelta : 0) + (xboxIcons.Checked ? 2 : 0)).ToString("N0");
         bool packageReady = false;
-        try { packageReady = Program.PackageError == null && File.Exists(archive) && new FileInfo(archive).Length == Program.Package.ArchiveBytes; } catch (IOException) { }
-        install.Enabled = currentPage < 2 || (valid && packageReady);
+        try { packageReady = Program.PackageError == null && Program.PackageSource != null && Program.PackageSource.Length == Program.Package.ArchiveBytes; } catch (IOException) { }
+        bool hasOptionalTool = installOverlay.Checked || installPortheon.Checked;
+        install.Enabled = currentPage < 2 ? valid || !packageReady : valid && packageReady && (!existingGameDetected || hasOptionalTool);
+        if (currentPage == 2) install.Text = existingGameDetected ? "Set up optional tools" : "Install game";
         UpdateSummary();
         if (!packageReady)
         {
@@ -1050,16 +1098,40 @@ internal sealed class InstallerForm : Form
         }
         else
         {
-            description.Text = currentPage == 0 ? "Choose a destination and your game options." : currentPage == 1 ? "Optional downloads from the official GitHub releases." : "Review your choices, then install your game files.";
+            description.Text = currentPage == 0 ? (existingGameDetected ? "Existing game detected. Only optional tools can be set up." : "Choose a destination and your game options.") : currentPage == 1 ? "Optional downloads from the official GitHub releases." : existingGameDetected ? "Existing game detected. Select at least one optional tool to continue." : "Review your choices, then install your game files.";
             if (currentPage == 2 && !valid) description.Text = space.Text;
-            if (!attempted) { status.Text = valid ? "Ready to install" : "Check your destination"; status.ForeColor = valid ? Green : Accent; }
+            if (!attempted) { status.Text = valid ? (existingGameDetected ? "Existing game ready" : "Ready to install") : "Check your destination"; status.ForeColor = valid ? Green : Accent; }
         }
         if (!attempted) { timing.Text = "Package integrity will be checked before installation."; percent.Text = "0%"; }
+    }
+
+    private static bool IsUfc6Folder(string path)
+    {
+        return File.Exists(Path.Combine(path, "sce_sys", "param.json")) && File.Exists(Path.Combine(path, "eboot.bin")) ||
+            File.Exists(Path.Combine(path, "UFC 6.exe")) || File.Exists(Path.Combine(path, "bin", "UFC 6.exe"));
     }
 
     private async Task StartInstall()
     {
         RefreshReadiness(); if (!install.Enabled) return;
+        if (existingGameDetected)
+        {
+            InstallLog.PortheonRequested = installPortheon.Checked;
+            InstallLog.OverlayRequested = installOverlay.Checked;
+            attempted = complete = true;
+            installedDestination = folder.Text;
+            launcherPending = installPortheon.Checked; overlayPending = installOverlay.Checked;
+            installOverlay.Enabled = installPortheon.Enabled = false;
+            browse.Enabled = folder.Enabled = alterEgos.Enabled = false;
+            playStationIcons.Enabled = xboxIcons.Enabled = false;
+            back.Enabled = false;
+            status.Text = "Existing game ready"; status.ForeColor = Green;
+            description.Text = "Game files will not be changed. Preparing selected optional tools.";
+            timing.Text = "Existing UFC 6 installation detected.";
+            InstallLog.Write("Existing UFC 6 installation detected; game extraction skipped.");
+            await StartOptionalSetups();
+            return;
+        }
         bool withAlterEgos = alterEgos.Checked;
         bool withXboxIcons = xboxIcons.Checked;
         InstallLog.PortheonRequested = installPortheon.Checked;
@@ -1115,7 +1187,7 @@ internal sealed class InstallerForm : Form
         running = true; install.Enabled = playNow.Enabled = false; cancel.Text = "Cancel"; cancel.Enabled = true;
         cancellation = new CancellationTokenSource(); phase = 4; elapsed.Restart();
         progress.Value = 0; progress.Finished = false; progress.Invalidate(); percent.Text = "0%";
-        description.Text = "Your game is installed. Preparing your optional setup choices.";
+        description.Text = existingGameDetected ? "Existing game is unchanged. Preparing your optional setup choices." : "Your game is installed. Preparing your optional setup choices.";
         status.ForeColor = Color.White;
         string product = launcherPending ? "PORTHEON" : "UFC 6 Actions Overlay";
         var updates = new Progress<Tuple<int, string>>(delegate(Tuple<int, string> value)
@@ -1130,14 +1202,24 @@ internal sealed class InstallerForm : Form
             string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UFC6 Installer", "Downloads");
             if (launcherPending)
             {
-                InstallLog.Write("Optional PORTHEON setup requested.");
-                string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report); });
-                cancellation.Token.ThrowIfCancellationRequested();
-                portheonSetup = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true });
-                launcherPending = false;
-                InstallLog.Write("Verified PORTHEON installer opened: " + executable);
-                status.Text = "PORTHEON installer opened";
-                description.Text = "Complete PORTHEON setup in its own window.";
+                string existingPortheon = FindPortheon();
+                if (!String.IsNullOrEmpty(existingPortheon) && !ConfirmRerunSetup("PORTHEON", existingPortheon))
+                {
+                    launcherPending = false;
+                    InstallLog.Write("Existing PORTHEON kept: " + existingPortheon);
+                    status.Text = "Existing PORTHEON kept";
+                }
+                else
+                {
+                    InstallLog.Write("Optional PORTHEON setup requested.");
+                    string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report); });
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    portheonSetup = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true });
+                    launcherPending = false;
+                    InstallLog.Write("Verified PORTHEON installer opened: " + executable);
+                    status.Text = "PORTHEON installer opened";
+                    description.Text = "Complete PORTHEON setup in its own window.";
+                }
             }
             if (overlayPending)
             {
@@ -1154,28 +1236,38 @@ internal sealed class InstallerForm : Form
                     int exitCode = portheonSetup.ExitCode; portheonSetup.Dispose(); portheonSetup = null;
                     if (exitCode != 0) { launcherPending = true; throw new IOException("PORTHEON setup did not complete. Finish its installation before setting up the overlay."); }
                 }
-                InstallLog.Write("Optional UFC 6 Actions Overlay setup requested.");
-                string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report, true); });
-                cancellation.Token.ThrowIfCancellationRequested();
                 string launcher = FindPortheon();
-                string folder = String.IsNullOrEmpty(launcher) ? null : Path.Combine(Path.GetDirectoryName(launcher), "games", "UFC6");
-                var info = new ProcessStartInfo(executable) { UseShellExecute = true };
-                if (folder != null && Directory.Exists(folder)) info.Arguments = "--folder \"" + folder + "\"";
-                Process.Start(info); overlayPending = false;
-                InstallLog.Write("Verified overlay installer opened; launcher folder=" + folder);
-                status.Text = "UFC 6 Actions Overlay installer opened";
-                description.Text = "In overlay setup, choose PORTHEON's games\\UFC6 folder and check compatibility.";
+                string folder = FindOverlayGameFolder(installedDestination);
+                if (String.IsNullOrEmpty(folder) && !String.IsNullOrEmpty(launcher)) folder = FindOverlayGameFolder(Path.Combine(Path.GetDirectoryName(launcher), "games", "UFC6"));
+                if (!String.IsNullOrEmpty(folder) && IsOverlayInstalled(folder) && !ConfirmRerunSetup("UFC 6 Actions Overlay", folder))
+                {
+                    overlayPending = false;
+                    InstallLog.Write("Existing Actions Overlay kept: " + folder);
+                    status.Text = "Existing Actions Overlay kept";
+                }
+                else
+                {
+                    InstallLog.Write("Optional UFC 6 Actions Overlay setup requested.");
+                    string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report, true); });
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    var info = new ProcessStartInfo(executable) { UseShellExecute = true };
+                    if (folder != null && Directory.Exists(folder)) info.Arguments = "--folder \"" + folder + "\"";
+                    Process.Start(info); overlayPending = false;
+                    InstallLog.Write("Verified overlay installer opened; launcher folder=" + folder);
+                    status.Text = "UFC 6 Actions Overlay installer opened";
+                    description.Text = "In overlay setup, choose PORTHEON's games\\UFC6 folder and check compatibility.";
+                }
             }
-            else description.Text = "Follow PORTHEON's setup, then choose your game folder under Game files.";
+            else if (portheonSetup != null) description.Text = "Follow PORTHEON's setup, then choose your game folder under Game files.";
             status.ForeColor = Green;
-            timing.Text = "Game files installed. Complete the optional setup in its own window.";
+            timing.Text = existingGameDetected ? "Existing game kept. Complete the optional setup in its own window." : "Game files installed. Complete the optional setup in its own window.";
             progress.Value = 100; progress.Finished = true; progress.Invalidate(); percent.Text = "100%";
         }
         catch (OperationCanceledException)
-        { InstallLog.Write("Optional setup cancelled; completed game and any open external setup retained."); status.Text = "Game installed · Optional setup cancelled"; status.ForeColor = Muted; timing.Text = "Game files kept. Finish any open setup window separately."; }
+        { InstallLog.Write("Optional setup cancelled; completed game and any open external setup retained."); status.Text = (existingGameDetected ? "Existing game" : "Game installed") + " · Optional setup cancelled"; status.ForeColor = Muted; timing.Text = "Game files kept. Finish any open setup window separately."; }
         catch (Exception ex)
         {
-            InstallLog.Failure(ex); status.Text = "Game installed · Optional setup needs attention"; status.ForeColor = Accent;
+            InstallLog.Failure(ex); status.Text = (existingGameDetected ? "Existing game" : "Game installed") + " · Optional setup needs attention"; status.ForeColor = Accent;
             timing.Text = "Retry setup, or use the project's Get from GitHub button above.";
             MessageBox.Show(this, "Your game files are installed. " + product + " setup could not complete:\n\n" + ex.Message,
                 "Optional setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1186,6 +1278,29 @@ internal sealed class InstallerForm : Form
             install.Text = launcherPending || overlayPending ? "Retry setup" : "Finish"; install.Enabled = true;
             cancel.Text = "Open folder"; cancel.Enabled = playNow.Enabled = true;
         }
+    }
+
+    private bool ConfirmRerunSetup(string product, string location)
+    {
+        return MessageBox.Show(this, product + " is already installed or available at:\n\n" + location +
+            "\n\nRun its latest setup again?", product + " already detected", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
+            MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+    }
+
+    private static bool IsOverlayInstalled(string folder)
+    {
+        string bin = FindOverlayGameFolder(folder);
+        if (String.IsNullOrEmpty(bin)) return false;
+        return File.Exists(Path.Combine(bin, "version.dll")) &&
+            (File.Exists(Path.Combine(bin, "ufc6_menu_layer.dll")) || File.Exists(Path.Combine(bin, "ufc6_menu_layer.json")));
+    }
+
+    private static string FindOverlayGameFolder(string folder)
+    {
+        if (String.IsNullOrEmpty(folder)) return null;
+        if (File.Exists(Path.Combine(folder, "UFC 6.exe"))) return folder;
+        string bin = Path.Combine(folder, "bin");
+        return File.Exists(Path.Combine(bin, "UFC 6.exe")) ? bin : null;
     }
 
     private string FindPortheon()

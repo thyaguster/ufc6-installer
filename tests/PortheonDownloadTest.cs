@@ -47,6 +47,10 @@ internal static class PortheonDownloadTest
         var cancellation = new CancellationTokenSource(); cancellation.Cancel();
         try { PortheonDownloader.GetLatest(cancellation.Token); throw new Exception("Cancellation was ignored."); }
         catch (OperationCanceledException) { }
+        if (PortheonDownloader.ParseOptionalToolsConfig("{\"portheonEnabled\":true}").portheonEnabled != true)
+            throw new Exception("PORTHEON GitHub switch was not parsed.");
+        try { PortheonDownloader.ParseOptionalToolsConfig("not json"); throw new Exception("Invalid optional-tools configuration was accepted."); }
+        catch (IOException) { }
         Console.WriteLine("PASS: official URL, stable release, asset selection, checksum requirements, hashing and pre-request cancellation.");
         if (args.Length == 2 && (args[1] == "--live" || args[1] == "--live-overlay"))
         {

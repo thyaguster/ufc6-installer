@@ -10,14 +10,20 @@ It does not include EA SPORTS UFC 6 game files, data.bin, Alter Egos, the privat
 package-signing key, generated installers or local compression reports. Supply
 only game files and optional content that you are authorized to use and share.
 
-Distribution: setup.exe and data.bin in the same folder.
+Distribution: setup.exe and data.bin in the same folder. Alternatively, use
+setup.exe with data.bin.header and a complete numbered payload set: data.bin.001,
+data.bin.002, and so on.
 setup.exe is generic: game version, sizes, components and the accepted payload
 SHA-256 are read from a signed manifest inside data.bin, not embedded in the EXE.
 The EXE contains the public verification key. Packages signed with the same key
 and supported format can be updated without rebuilding the installer.
 The 64 KiB signed header is followed by the unchanged 7z payload. Metadata is
 verified before display; the payload hash is checked before any game extraction.
-Missing, unsigned, modified or untrusted packages cannot be installed.
+Missing, unsigned, modified or untrusted packages cannot be installed. Numbered
+parts are direct 7z volumes: they are extracted without rebuilding data.bin or
+making a second compressed copy. The signed data.bin.header and every payload
+part must be present; the payload is verified by the same signature and SHA-256
+checks as a single data.bin.
 The interface has three steps: Game setup, Optional tools, and Install.
 Back/Next preserves selections. The final page summarizes the chosen destination,
 game options and downloads, with performance controls, progress and Play now.
@@ -44,6 +50,13 @@ Override with -Source 'path'. Output must be outside the source folder.
 Normal uses solid LZMA2, level 5, a 64 MiB dictionary and two threads.
 Alter Egos is stored in a separate block inside the same data.bin.
 Use -Compression Ultra for level 9; benchmark before committing to a long run.
+Use -SplitSizeGiB 10 to emit numbered 10 GiB package parts instead of data.bin.
+The installer accepts either distribution layout. Split packages extract directly
+from their volumes, so they do not need an extra compressed-package-sized copy on
+the destination drive.
+To split an already built package without recompressing or changing its signature:
+  .\split-package.ps1 -InputFile 'E:\UFC6-installer\data.bin' -OutputDirectory 'E:\UFC6-installer-split' -PartSizeGiB 10
+This leaves the original data.bin untouched and refuses to overwrite any part.
 The output drive must have room for an incompressible archive. Packing verifies
 the archive, checks that source file sizes/timestamps stayed stable, and records
 the payload SHA-256 digest in signed metadata. Do not modify source files during a build.
@@ -89,14 +102,18 @@ not prevent setup-only builds. Package signing needs the matching private key.
 INSTALL
 Run setup.exe and choose a NEW destination folder. Setup verifies data.bin,
 checks available space, extracts to a temporary sibling folder, and renames it
-only on success. Existing destinations are refused. Cancellation removes the
-temporary extraction. No admin access, shortcuts, registry entries or uninstaller
-are added. Install into a folder your Windows user can write to.
+only on success. Existing unrelated destinations are refused. A recognized UFC 6
+folder is read-only: setup skips game extraction and can be used only to manage
+the optional tools. Cancellation removes the temporary extraction. No admin
+access, shortcuts, registry entries or uninstaller are added. Install into a
+folder your Windows user can write to.
 7-Zip and its license notice are embedded; license/source details are in About.
 
 The interface shows archive size, installed size, file count, and live available
 space for the selected drive. Game version is read from sce_sys/param.json when
-packing, if available. Existing folders and insufficient space disable Install.
+packing, if available. Existing unrelated folders and insufficient space disable
+Install. A detected existing UFC 6 folder identifies game options as unchanged
+and enables the optional-tools-only path when at least one tool is selected.
 Progress separates package checking from extraction. Elapsed time and estimated
 time remaining for the CURRENT STEP appear during installation; an estimate is
 shown only after five seconds of measured progress. Open folder is available
@@ -128,7 +145,9 @@ keyboard/accessibility behavior. Play now is visibly grey until it is available.
 Alter Egos uses a pill switch (on by default). Action buttons use rounded corners
 with hover, pressed, keyboard-focus and disabled states. PlayStation symbols are
 optically sized at 16 px within the same spacing as the 20 px Xbox circles.
-The optional PORTHEON download uses a matching pill switch, off by default.
+The PORTHEON card is disabled by default. Its availability is controlled by
+optional-tools.json in the public GitHub repository; set portheonEnabled to true
+there to show its card, GitHub link and optional download switch in future runs.
 UFC 6 Actions Overlay has its own card above PORTHEON, with the project's icon,
 a short feature summary, GitHub link and optional install switch (off by default).
 It downloads the latest stable standalone setup from thyaguster/ufc6-actions-overlay
@@ -139,8 +158,12 @@ for it to close before opening overlay setup, prefilling games\UFC6 if detected.
 Cancellation keeps the game and leaves any already-open external setup running.
 Retry resumes pending setups. Overlay setup is interactive; choose/check the
 launcher folder and close UFC 6/PORTHEON before applying it. The project includes
-its own in-game button-icon helper; our existing selector sets the initial game
-icons independently. No game-data repack is required for either optional setup.
+its own in-game button-icon helper; the Game setup page notes that icons can also
+be changed later in UFC 6 Actions Overlay. Our selector sets only the initial
+game icons. No game-data repack is required for either optional setup. If
+PORTHEON or the overlay is detected, setup asks before running that optional
+installer again; overlay detection checks the selected game folder first, then
+PORTHEON's standard games\\UFC6 folder.
 The performance dropdown and popup use the same dark palette, rounded border,
 and red selection accent, with arrow-key navigation and accessibility support.
 The Play on PC with PORTHEON panel displays its official README logo and a short

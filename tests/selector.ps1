@@ -23,12 +23,20 @@ try {
     if (!$alterEgos.Checked -or $alterEgos.AccessibleRole -ne 'CheckButton') { throw 'Alter Egos switch did not turn on or lost its accessibility role.' }
     Write-Host 'PASS: pill switch defaults on, toggles off/on, and retains checkbox accessibility.'
     $portheon = $form.GetType().GetField('installPortheon', $flags).GetValue($form)
+    $launcherPanel = $form.GetType().GetField('launcherPanel', $flags).GetValue($form)
+    $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(1))
+    if ($launcherPanel.Visible) { throw 'PORTHEON card should be disabled until GitHub enables it.' }
+    $form.GetType().GetMethod('ApplyPortheonToolSwitch', $flags).Invoke($form, @($true))
+    $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
+    if (!$portheon.Enabled) { throw 'GitHub PORTHEON switch did not enable the card.' }
     if ($portheon.Checked) { throw 'Optional PORTHEON switch should be off by default.' }
     $toggle.Invoke($portheon, @([EventArgs]::Empty))
     if (!$portheon.Checked) { throw 'PORTHEON switch did not turn on.' }
     $toggle.Invoke($portheon, @([EventArgs]::Empty))
     if ($portheon.Checked -or $portheon.AccessibleRole -ne 'CheckButton') { throw 'PORTHEON switch did not turn off or lost accessibility.' }
-    Write-Host 'PASS: PORTHEON pill switch defaults off and toggles both ways.'
+    $form.GetType().GetMethod('ApplyPortheonToolSwitch', $flags).Invoke($form, @($false))
+    if ($portheon.Enabled -or $portheon.Checked) { throw 'GitHub PORTHEON switch did not hide the card.' }
+    Write-Host 'PASS: PORTHEON card defaults disabled, and its GitHub switch enables or hides it safely.'
     $overlay = $form.GetType().GetField('installOverlay', $flags).GetValue($form)
     if ($overlay.Checked) { throw 'Optional overlay switch should be off by default.' }
     $toggle.Invoke($overlay, @([EventArgs]::Empty))
@@ -44,7 +52,7 @@ try {
     $portheonGithub = $form.GetType().GetField('portheonGithub', $flags).GetValue($form)
     if ($overlay.Enabled -or $portheon.Enabled -or $overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'No internet connection') { throw 'Offline state did not disable optional tools or explain why.' }
     $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
-    if (!$overlay.Enabled -or !$portheon.Enabled -or !$overlayGithub.Enabled -or !$portheonGithub.Enabled -or $status.Text -notmatch 'available') { throw 'Online state did not restore optional tools.' }
+    if (!$overlay.Enabled -or $portheon.Enabled -or !$overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'Actions Overlay available') { throw 'Online state did not respect the disabled PORTHEON switch.' }
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(0))
     Write-Host 'PASS: optional tools clearly show offline status, disable Internet actions, and restore when GitHub is reachable.'
     $mode = $form.GetType().GetField('performanceMode', $flags).GetValue($form)
@@ -80,7 +88,19 @@ try {
     $originalDestination = $destination.Text
     $destination.Text = $PSScriptRoot
     if ($next.Enabled) { throw 'Install was enabled for an existing destination.' }
-    $destination.Text = $originalDestination
+    $existingGame = Join-Path ([IO.Path]::GetTempPath()) ('ufc6-installer-existing-' + [Guid]::NewGuid())
+    New-Item -ItemType Directory -Path (Join-Path $existingGame 'sce_sys') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $existingGame 'sce_sys\param.json') -Value '{}'
+    Set-Content -LiteralPath (Join-Path $existingGame 'eboot.bin') -Value ''
+    try {
+        $destination.Text = $existingGame
+        if (!$next.Enabled -or $next.Text -ne 'Set up optional tools') { throw 'A detected UFC 6 installation did not enable the optional-tools path.' }
+        if ($alterEgos.Enabled -or $xbox.Enabled -or $playStation.Enabled) { throw 'Existing game options should be left unchanged.' }
+        if ($form.GetType().GetField('summaryAlterEgos', $flags).GetValue($form).Text -ne 'Unchanged') { throw 'Summary did not identify an existing game as unchanged.' }
+    } finally {
+        $destination.Text = $originalDestination
+        Remove-Item -LiteralPath $existingGame -Recurse -Force -ErrorAction SilentlyContinue
+    }
     $back.PerformClick(); $back.PerformClick()
     if ($page.GetValue($form) -ne 0 -or !$overlay.Checked -or !$xbox.Checked) { throw 'Back navigation lost selected options.' }
     $next.PerformClick(); $next.PerformClick()
