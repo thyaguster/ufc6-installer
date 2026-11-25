@@ -1012,12 +1012,6 @@ internal sealed class InstallerForm : Form
         if (summaryDestination != null) UpdateSummary();
     }
 
-    internal void ApplyPortheonToolSwitch(bool enabled)
-    {
-        var config = PortheonDownloader.ParseOptionalToolsConfig("{\"slots\":[{\"enabled\":true,\"name\":\"UFC 6 Actions Overlay\",\"description\":\"Controller-friendly cheats and screenshots\",\"note\":\"Choose your game folder in setup\",\"repository\":\"thyaguster/ufc6-actions-overlay\",\"installerPattern\":\"UFC6-Actions-Overlay-Setup-*.exe\"},{\"enabled\":" + (enabled ? "true" : "false") + ",\"name\":\"PORTHEON\",\"description\":\"Game launcher\",\"note\":\"Choose game files in launcher\",\"repository\":\"XAndromedaXR/PORTHEON\",\"installerPattern\":\"PORTHEON-*-Setup.exe\"}]}");
-        ApplyToolSlots(config);
-    }
-
     internal void ApplyToolSlots(PortheonDownloader.OptionalToolsConfig config)
     {
         for (int i = 0; i < 2; i++) toolSlots[i] = config != null && config.slots[i].enabled ? config.slots[i] : null;

@@ -29,7 +29,10 @@ try {
     $launcherPanel = $form.GetType().GetField('launcherPanel', $flags).GetValue($form)
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(1))
     if ($launcherPanel.Visible) { throw 'PORTHEON card should be disabled until GitHub enables it.' }
-    $form.GetType().GetMethod('ApplyPortheonToolSwitch', $flags).Invoke($form, @($true))
+    $enabledConfigJson = $configJson | ConvertFrom-Json
+    $enabledConfigJson.slots[1].enabled = $true
+    $enabledConfig = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]($enabledConfigJson | ConvertTo-Json -Depth 10)))
+    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($enabledConfig))
     $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
     if (!$portheon.Enabled) { throw 'GitHub PORTHEON switch did not enable the card.' }
     if ($portheon.Checked) { throw 'Optional PORTHEON switch should be off by default.' }
@@ -37,7 +40,7 @@ try {
     if (!$portheon.Checked) { throw 'PORTHEON switch did not turn on.' }
     $toggle.Invoke($portheon, @([EventArgs]::Empty))
     if ($portheon.Checked -or $portheon.AccessibleRole -ne 'CheckButton') { throw 'PORTHEON switch did not turn off or lost accessibility.' }
-    $form.GetType().GetMethod('ApplyPortheonToolSwitch', $flags).Invoke($form, @($false))
+    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($configured))
     if ($portheon.Enabled -or $portheon.Checked) { throw 'GitHub PORTHEON switch did not hide the card.' }
     Write-Host 'PASS: PORTHEON card defaults disabled, and its GitHub switch enables or hides it safely.'
     $overlay = $form.GetType().GetField('installOverlay', $flags).GetValue($form)
