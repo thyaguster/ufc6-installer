@@ -56,6 +56,14 @@ try {
     if ($overlay.Enabled -or $portheon.Enabled -or $overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'No internet connection') { throw 'Offline state did not disable optional tools or explain why.' }
     $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
     if (!$overlay.Enabled -or $portheon.Enabled -or !$overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'loaded from GitHub') { throw 'Online state did not respect the disabled second tool slot.' }
+    $manualJson = '{"slots":[{"enabled":true,"name":"Replacement ZIP tool","description":"Install it yourself from GitHub","note":"Read the project instructions","instructions":"Download the ZIP, extract it, then copy its files into the game folder.","installMode":"github","repository":"example/replacement"},{"enabled":false}]}'
+    $manualConfig = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]$manualJson))
+    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($manualConfig))
+    $instructions = $form.GetType().GetField('toolInstructions', $flags).GetValue($form)
+    $title = $form.GetType().GetField('overlayTitle', $flags).GetValue($form)
+    if ($title.Text -ne 'Replacement ZIP tool' -or $overlay.Visible -or !$instructions[0].Enabled -or !$overlayGithub.Enabled -or $launcherPanel.Visible) { throw 'Manual replacement tool card was not configured correctly.' }
+    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($configured))
+    Write-Host 'PASS: GitHub-only replacement software displays its instructions without an auto-install switch.'
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(0))
     Write-Host 'PASS: optional tools clearly show offline status, disable Internet actions, and restore when GitHub is reachable.'
     $mode = $form.GetType().GetField('performanceMode', $flags).GetValue($form)

@@ -28,6 +28,11 @@ internal static class PortheonDownloader
         public string note { get; set; }
         public string repository { get; set; }
         public string installerPattern { get; set; }
+        public string installMode { get; set; }
+        public string instructions { get; set; }
+        public int installOrder { get; set; }
+        public string installerArguments { get; set; }
+        public string detectedFile { get; set; }
     }
 
     internal sealed class Release
@@ -85,11 +90,19 @@ internal static class PortheonDownloader
         {
             if (slot == null) throw new IOException("Optional-tools slot is invalid.");
             if (!slot.enabled) continue;
+            if (String.IsNullOrEmpty(slot.installMode)) slot.installMode = "installer";
+            if (String.IsNullOrWhiteSpace(slot.instructions)) slot.instructions = slot.note;
             if (String.IsNullOrWhiteSpace(slot.name) || slot.name.Length > 42 || String.IsNullOrWhiteSpace(slot.description) || slot.description.Length > 160 ||
                 String.IsNullOrWhiteSpace(slot.note) || slot.note.Length > 110 || slot.repository == null ||
                 !Regex.IsMatch(slot.repository, @"\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z") ||
-                slot.installerPattern == null || !Regex.IsMatch(slot.installerPattern, @"\A[A-Za-z0-9._*-]+\.exe\z", RegexOptions.IgnoreCase) ||
-                slot.installerPattern.IndexOf('*') != slot.installerPattern.LastIndexOf('*'))
+                (slot.installMode != "installer" && slot.installMode != "github") || slot.installOrder < 0 || slot.installOrder > 1000 ||
+                String.IsNullOrWhiteSpace(slot.instructions) || slot.instructions.Length > 1200 ||
+                (slot.installerArguments != null && (slot.installerArguments.Length > 250 || slot.installerArguments.Contains("\r") || slot.installerArguments.Contains("\n") ||
+                Regex.IsMatch(slot.installerArguments.Replace("{gameFolder}", ""), @"\{[^{}]*\}"))) ||
+                (slot.detectedFile != null && (slot.detectedFile.Length > 250 || !Regex.IsMatch(slot.detectedFile, @"\A\{(gameFolder|localAppData|programFiles|programFilesX86)\}\\[^:*?\""<>|]+\z") ||
+                Regex.IsMatch(slot.detectedFile, @"(^|\\)\.\.(\\|$)"))) ||
+                (slot.installMode == "installer" && (slot.installerPattern == null || !Regex.IsMatch(slot.installerPattern, @"\A[A-Za-z0-9._*-]+\.exe\z", RegexOptions.IgnoreCase) ||
+                slot.installerPattern.IndexOf('*') != slot.installerPattern.LastIndexOf('*'))))
                 throw new IOException("Optional-tools slot has invalid metadata.");
         }
         return config;

@@ -50,6 +50,14 @@ internal static class PortheonDownloadTest
         string configJson = "{\"slots\":[{\"enabled\":true,\"name\":\"Another tool\",\"description\":\"A replacement\",\"note\":\"Run its setup\",\"repository\":\"example/project\",\"installerPattern\":\"Project-*.exe\"},{\"enabled\":false}]}";
         var config = PortheonDownloader.ParseOptionalToolsConfig(configJson);
         if (config.slots[0].repository != "example/project" || config.slots[1].enabled) throw new Exception("Configurable tool slots were not parsed.");
+        string manualJson = "{\"slots\":[{\"enabled\":true,\"name\":\"Manual tool\",\"description\":\"Install from GitHub\",\"note\":\"Read the steps\",\"instructions\":\"Download its ZIP and follow its README.\",\"repository\":\"example/manual\",\"installMode\":\"github\"},{\"enabled\":false}]}";
+        var manual = PortheonDownloader.ParseOptionalToolsConfig(manualJson);
+        if (manual.slots[0].installMode != "github" || manual.slots[0].instructions.IndexOf("README", StringComparison.Ordinal) < 0)
+            throw new Exception("Manual tool instructions were not parsed.");
+        string configuredJson = configJson.Replace("\"installerPattern\":\"Project-*.exe\"", "\"installerPattern\":\"Project-*.exe\",\"installOrder\":15,\"installerArguments\":\"--target {gameFolder}\",\"detectedFile\":\"{gameFolder}\\\\Project.exe\"");
+        var configured = PortheonDownloader.ParseOptionalToolsConfig(configuredJson);
+        if (configured.slots[0].installOrder != 15 || configured.slots[0].installerArguments != "--target {gameFolder}" || configured.slots[0].detectedFile != @"{gameFolder}\Project.exe")
+            throw new Exception("Configurable setup behavior was not parsed.");
         var alternateRelease = new PortheonDownloader.Release { assets = new[] { new PortheonDownloader.Asset { name="Project-1.exe", size=123, digest="sha256:"+new String('a',64), browser_download_url="https://github.com/example/project/releases/download/v1/Project-1.exe" } } };
         if (PortheonDownloader.SelectInstaller(alternateRelease, config.slots[0]).name != "Project-1.exe") throw new Exception("Replacement project was not accepted.");
         alternateRelease.assets[0].browser_download_url = "https://github.com/other/project/releases/download/v1/Project-1.exe";

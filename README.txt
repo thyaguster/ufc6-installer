@@ -147,8 +147,21 @@ with hover, pressed, keyboard-focus and disabled states. PlayStation symbols are
 optically sized at 16 px within the same spacing as the 20 px Xbox circles.
 The two optional-tool cards are populated by optional-tools.json in the public
 GitHub repository. Each slot can be disabled or given another name, description,
-note, GitHub owner/repository and installer filename pattern without rebuilding
-setup.exe. The first slot defaults to Actions Overlay; the second is disabled.
+note, full setup instructions, GitHub owner/repository and installation behavior
+without rebuilding setup.exe. The first slot defaults to Actions Overlay; the
+second is disabled. A visible Instructions button displays the full steps.
+installMode is "installer" for a Windows setup EXE or "github" for software
+that users must install manually. The GitHub mode shows the release link and
+instructions without an auto-install switch. Installer mode needs an
+installerPattern matching exactly one EXE in the latest stable GitHub release.
+installOrder sets the order when both are selected (lower runs first); the
+installer waits for the first setup to close before opening the next.
+installerArguments can contain {gameFolder}, replaced with the selected game
+destination in quotes. detectedFile can be a path beginning with {gameFolder},
+{localAppData}, {programFiles}, or {programFilesX86}; if found, setup asks
+before reinstalling. See optional-tools.json for a working example. Only the
+repository owner should edit that file: an enabled installer slot can launch a
+verified executable from the configured repository.
 The installer validates the GitHub asset URL, filename, size and published
 SHA-256 before opening it. If the configuration cannot be loaded, both optional
 tool cards stay hidden and game installation still works.
@@ -166,8 +179,7 @@ its own in-game button-icon helper; the Game setup page notes that icons can als
 be changed later in UFC 6 Actions Overlay. Our selector sets only the initial
 game icons. No game-data repack is required for either optional setup. If
 PORTHEON or the overlay is detected, setup asks before running that optional
-installer again; overlay detection checks the selected game folder first, then
-PORTHEON's standard games\\UFC6 folder.
+installer again; built-in overlay detection checks the selected game folder.
 The performance dropdown and popup use the same dark palette, rounded border,
 and red selection accent, with arrow-key navigation and accessibility support.
 The Play on PC with PORTHEON panel displays its official README logo and a short

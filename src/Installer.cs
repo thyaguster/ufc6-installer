@@ -697,6 +697,7 @@ internal sealed class InstallerForm : Form
     private readonly CheckBox installOverlay = new PillSwitch();
     private readonly Button overlayGithub = new SoftButton();
     private readonly Button portheonGithub = new SoftButton();
+    private readonly Button[] toolInstructions = { new SoftButton(), new SoftButton() };
     private readonly Label optionalToolsStatus = new Label();
     private readonly PictureBox overlayLogo = new PictureBox();
     private readonly Button playNow = new SoftButton();
@@ -713,7 +714,6 @@ internal sealed class InstallerForm : Form
     private bool optionalToolsChecked;
     private bool optionalToolsOnline = true;
     private CancellationTokenSource optionalToolsCheck;
-    private Process portheonSetup;
     private Label installedSize;
     private Label fileCount;
     private readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
@@ -822,13 +822,15 @@ internal sealed class InstallerForm : Form
         using (var stream = Program.Assembly.GetManifestResourceStream("overlay-logo.png"))
         using (var image = Image.FromStream(stream)) overlayLogo.Image = new Bitmap(image);
         overlayPanel.Controls.Add(overlayLogo);
-        LabelAt(overlayPanel, "IN-GAME TOOLS", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
+        LabelAt(overlayPanel, "OPTIONAL TOOL", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
         overlayTitle = LabelAt(overlayPanel, "UFC 6 Actions Overlay", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
         var overlayInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; overlayPanel.Controls.Add(overlayInfo);
         overlayDescription = LabelAt(overlayInfo, "Controller-friendly cheats, screenshots, Photo Mode, settings,\nand restart/quit actions on supported PORTHEON builds.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
         overlayNote = LabelAt(overlayPanel, "Choose PORTHEON's games\\UFC6 launcher folder in overlay setup.", 16, 122, 568, 22, 9, Color.White, FontStyle.Regular);
         ButtonAt(overlayGithub, "Get from GitHub", 16, 146, 190, false); overlayGithub.Height = 32; overlayPanel.Controls.Add(overlayGithub);
         overlayGithub.Click += delegate { if (toolSlots[0] != null) Process.Start(new ProcessStartInfo(PortheonDownloader.ReleasesPageFor(toolSlots[0])) { UseShellExecute = true }); };
+        ButtonAt(toolInstructions[0], "Instructions", 215, 146, 110, false); toolInstructions[0].Height = 32; overlayPanel.Controls.Add(toolInstructions[0]);
+        toolInstructions[0].Click += delegate { ShowToolInstructions(0); };
         installOverlay.Text = "Install it for me"; installOverlay.SetBounds(334, 140, 245, 28);
         installOverlay.Font = new Font("Segoe UI", 10, FontStyle.Bold); installOverlay.Checked = false; overlayPanel.Controls.Add(installOverlay);
         LabelAt(overlayPanel, "Latest release · Internet required", 334, 167, 245, 17, 8, Muted, FontStyle.Regular);
@@ -837,7 +839,7 @@ internal sealed class InstallerForm : Form
         using (var stream = Program.Assembly.GetManifestResourceStream("portheon-logo.png"))
         using (var image = Image.FromStream(stream)) portheonLogo.Image = new Bitmap(image);
         launcherPanel.Controls.Add(portheonLogo);
-        LabelAt(launcherPanel, "YOUR NEXT STEP", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
+        LabelAt(launcherPanel, "OPTIONAL TOOL", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
         launcherTitle = LabelAt(launcherPanel, "Play on PC with PORTHEON", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
         var launcherInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; launcherPanel.Controls.Add(launcherInfo);
         launcherDescription = LabelAt(launcherInfo, "A free launcher for UFC 1–6 and other PC ports. It finds your games\nand chooses settings for your PC.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
@@ -847,6 +849,8 @@ internal sealed class InstallerForm : Form
         playNow.Click += delegate { OpenPortheon(); };
         ButtonAt(portheonGithub, "Get from GitHub", 16, 146, 190, false); portheonGithub.Height = 32;
         portheonGithub.Click += delegate { if (toolSlots[1] != null) Process.Start(new ProcessStartInfo(PortheonDownloader.ReleasesPageFor(toolSlots[1])) { UseShellExecute = true }); }; launcherPanel.Controls.Add(portheonGithub);
+        ButtonAt(toolInstructions[1], "Instructions", 215, 146, 110, false); toolInstructions[1].Height = 32; launcherPanel.Controls.Add(toolInstructions[1]);
+        toolInstructions[1].Click += delegate { ShowToolInstructions(1); };
         installPortheon.Text = "Install it for me"; installPortheon.SetBounds(334, 140, 245, 28);
         installPortheon.Font = new Font("Segoe UI", 10, FontStyle.Bold); installPortheon.Cursor = Cursors.Hand;
         installPortheon.Checked = false; launcherPanel.Controls.Add(installPortheon);
@@ -991,8 +995,10 @@ internal sealed class InstallerForm : Form
     internal void SetOptionalToolsOnline(bool online, string message)
     {
         optionalToolsOnline = online;
-        overlayGithub.Enabled = installOverlay.Enabled = toolSlots[0] != null && online && !running && !complete;
-        portheonGithub.Enabled = installPortheon.Enabled = toolSlots[1] != null && online && !running && !complete;
+        overlayGithub.Enabled = toolInstructions[0].Enabled = toolSlots[0] != null && online && !running;
+        portheonGithub.Enabled = toolInstructions[1].Enabled = toolSlots[1] != null && online && !running;
+        installOverlay.Enabled = toolSlots[0] != null && toolSlots[0].installMode == "installer" && online && !running;
+        installPortheon.Enabled = toolSlots[1] != null && toolSlots[1].installMode == "installer" && online && !running;
         if (online)
         {
             optionalToolsStatus.ForeColor = Green;
@@ -1015,19 +1021,28 @@ internal sealed class InstallerForm : Form
     internal void ApplyToolSlots(PortheonDownloader.OptionalToolsConfig config)
     {
         for (int i = 0; i < 2; i++) toolSlots[i] = config != null && config.slots[i].enabled ? config.slots[i] : null;
-        if (toolSlots[0] == null) { installOverlay.Checked = false; overlayPending = false; }
-        if (toolSlots[1] == null) { installPortheon.Checked = false; launcherPending = false; }
+        if (toolSlots[0] == null || toolSlots[0].installMode != "installer") { installOverlay.Checked = false; overlayPending = false; }
+        if (toolSlots[1] == null || toolSlots[1].installMode != "installer") { installPortheon.Checked = false; launcherPending = false; }
         overlayPanel.Visible = toolSlots[0] != null;
         launcherPanel.Visible = toolSlots[1] != null;
         launcherPanel.Top = toolSlots[0] == null ? 0 : 200;
         optionalToolsStatus.Top = toolSlots[0] != null && toolSlots[1] != null ? 394 : (toolSlots[0] != null || toolSlots[1] != null ? 194 : 12);
         if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = toolSlots[0].repository == "thyaguster/ufc6-actions-overlay"; }
         if (toolSlots[1] != null) { launcherTitle.Text = toolSlots[1].name; launcherDescription.Text = toolSlots[1].description; launcherNote.Text = toolSlots[1].note; portheonLogo.Visible = toolSlots[1].repository == "XAndromedaXR/PORTHEON"; }
+        installOverlay.Visible = toolSlots[0] != null && toolSlots[0].installMode == "installer";
+        installPortheon.Visible = toolSlots[1] != null && toolSlots[1].installMode == "installer";
         overlayTitle.Left = overlayLogo.Visible ? 82 : 16;
         launcherTitle.Left = portheonLogo.Visible ? 82 : 16;
-        overlayGithub.Enabled = installOverlay.Enabled = toolSlots[0] != null && optionalToolsOnline && !running && !complete;
-        portheonGithub.Enabled = installPortheon.Enabled = toolSlots[1] != null && optionalToolsOnline && !running && !complete;
+        SetOptionalToolsOnline(optionalToolsOnline, null);
         if (summaryDestination != null) UpdateSummary();
+    }
+
+    private void ShowToolInstructions(int index)
+    {
+        var slot = toolSlots[index];
+        if (slot == null) return;
+        MessageBox.Show(this, slot.instructions + "\n\nLatest release: " + PortheonDownloader.ReleasesPageFor(slot),
+            slot.name + " · Installation instructions", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void UpdateSummary()
@@ -1186,8 +1201,8 @@ internal sealed class InstallerForm : Form
             playNow.Enabled = complete;
             performanceMode.Enabled = !complete;
             if (!complete) { back.Enabled = true; cancel.Text = "Close"; RefreshReadiness(); } else install.Enabled = true;
-            installPortheon.Enabled = !complete && optionalToolsOnline && toolSlots[1] != null;
-            installOverlay.Enabled = !complete && optionalToolsOnline && toolSlots[0] != null;
+            installPortheon.Enabled = optionalToolsOnline && toolSlots[1] != null && toolSlots[1].installMode == "installer";
+            installOverlay.Enabled = optionalToolsOnline && toolSlots[0] != null && toolSlots[0].installMode == "installer";
         }
         if (complete)
         {
@@ -1214,65 +1229,48 @@ internal sealed class InstallerForm : Form
         try
         {
             string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UFC6 Installer", "Downloads");
-            if (launcherPending)
+            var pending = new System.Collections.Generic.List<int>();
+            if (overlayPending) pending.Add(0);
+            if (launcherPending) pending.Add(1);
+            pending.Sort(delegate(int a, int b) { int order = toolSlots[a].installOrder.CompareTo(toolSlots[b].installOrder); return order != 0 ? order : a.CompareTo(b); });
+            for (int position = 0; position < pending.Count; position++)
             {
-                string existingPortheon = toolSlots[1].repository == "XAndromedaXR/PORTHEON" ? FindPortheon() : null;
-                if (!String.IsNullOrEmpty(existingPortheon) && !ConfirmRerunSetup(product, existingPortheon))
+                int index = pending[position];
+                var slot = toolSlots[index];
+                product = slot.name;
+                string found = DetectOptionalTool(slot);
+                string gameFolder = FindOverlayGameFolder(installedDestination);
+                if (found == null && slot.repository == "XAndromedaXR/PORTHEON") found = FindPortheon();
+                else if (found == null && slot.repository == "thyaguster/ufc6-actions-overlay" && IsOverlayInstalled(gameFolder)) found = gameFolder;
+                if (!String.IsNullOrEmpty(found) && !ConfirmRerunSetup(product, found))
                 {
-                    launcherPending = false;
-                    InstallLog.Write("Existing PORTHEON kept: " + existingPortheon);
-                    status.Text = "Existing PORTHEON kept";
+                    InstallLog.Write("Existing optional tool kept: " + slot.name + " at " + found);
+                    status.Text = "Existing " + slot.name + " kept";
                 }
                 else
                 {
-                    InstallLog.Write("Optional PORTHEON setup requested.");
-                    string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report, toolSlots[1]); });
-                    cancellation.Token.ThrowIfCancellationRequested();
-                    portheonSetup = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true });
-                    launcherPending = false;
-                    InstallLog.Write("Verified PORTHEON installer opened: " + executable);
-                    status.Text = "PORTHEON installer opened";
-                    description.Text = "Complete PORTHEON setup in its own window.";
-                }
-            }
-            if (overlayPending)
-            {
-                product = toolSlots[0].name;
-                if (portheonSetup != null)
-                {
-                    status.Text = "Complete PORTHEON setup to continue";
-                    description.Text = "The overlay setup will open after the PORTHEON installer closes.";
-                    await Task.Run(delegate
-                    {
-                        while (!portheonSetup.WaitForExit(200)) cancellation.Token.ThrowIfCancellationRequested();
-                        cancellation.Token.ThrowIfCancellationRequested();
-                    });
-                    int exitCode = portheonSetup.ExitCode; portheonSetup.Dispose(); portheonSetup = null;
-                    if (exitCode != 0) { launcherPending = true; throw new IOException("PORTHEON setup did not complete. Finish its installation before setting up the overlay."); }
-                }
-                string launcher = FindPortheon();
-                string folder = FindOverlayGameFolder(installedDestination);
-                if (String.IsNullOrEmpty(folder) && !String.IsNullOrEmpty(launcher)) folder = FindOverlayGameFolder(Path.Combine(Path.GetDirectoryName(launcher), "games", "UFC6"));
-                if (toolSlots[0].repository == "thyaguster/ufc6-actions-overlay" && !String.IsNullOrEmpty(folder) && IsOverlayInstalled(folder) && !ConfirmRerunSetup(product, folder))
-                {
-                    overlayPending = false;
-                    InstallLog.Write("Existing Actions Overlay kept: " + folder);
-                    status.Text = "Existing Actions Overlay kept";
-                }
-                else
-                {
-                    InstallLog.Write("Optional UFC 6 Actions Overlay setup requested.");
-                    string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report, toolSlots[0]); });
+                    InstallLog.Write("Optional setup requested: " + slot.name);
+                    string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report, slot); });
                     cancellation.Token.ThrowIfCancellationRequested();
                     var info = new ProcessStartInfo(executable) { UseShellExecute = true };
-                    if (toolSlots[0].repository == "thyaguster/ufc6-actions-overlay" && folder != null && Directory.Exists(folder)) info.Arguments = "--folder \"" + folder + "\"";
-                    Process.Start(info); overlayPending = false;
-                    InstallLog.Write("Verified overlay installer opened; launcher folder=" + folder);
-                    status.Text = "UFC 6 Actions Overlay installer opened";
-                    description.Text = "In overlay setup, choose PORTHEON's games\\UFC6 folder and check compatibility.";
+                    if (!String.IsNullOrWhiteSpace(slot.installerArguments)) info.Arguments = slot.installerArguments.Replace("{gameFolder}", "\"" + installedDestination + "\"");
+                    else if (slot.repository == "thyaguster/ufc6-actions-overlay" && gameFolder != null && Directory.Exists(gameFolder)) info.Arguments = "--folder \"" + gameFolder + "\"";
+                    using (Process setup = Process.Start(info))
+                    {
+                        if (setup == null) throw new IOException("Could not open the setup for " + slot.name + ".");
+                        InstallLog.Write("Verified optional installer opened: " + executable);
+                        status.Text = slot.name + " setup opened";
+                        description.Text = slot.note;
+                        if (position + 1 < pending.Count)
+                        {
+                            status.Text = "Complete " + slot.name + " setup to continue";
+                            await Task.Run(delegate { while (!setup.WaitForExit(200)) cancellation.Token.ThrowIfCancellationRequested(); });
+                            if (setup.ExitCode != 0) throw new IOException(slot.name + " setup exited with code " + setup.ExitCode + ". Complete it before continuing.");
+                        }
+                    }
                 }
+                if (index == 0) overlayPending = false; else launcherPending = false;
             }
-            else if (portheonSetup != null) description.Text = "Follow PORTHEON's setup, then choose your game folder under Game files.";
             status.ForeColor = Green;
             timing.Text = existingGameDetected ? "Existing game kept. Complete the optional setup in its own window." : "Game files installed. Complete the optional setup in its own window.";
             progress.Value = 100; progress.Finished = true; progress.Invalidate(); percent.Text = "100%";
@@ -1299,6 +1297,22 @@ internal sealed class InstallerForm : Form
         return MessageBox.Show(this, product + " is already installed or available at:\n\n" + location +
             "\n\nRun its latest setup again?", product + " already detected", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
             MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+    }
+
+    private string DetectOptionalTool(PortheonDownloader.ToolSlot slot)
+    {
+        if (String.IsNullOrEmpty(slot.detectedFile)) return null;
+        string candidate = slot.detectedFile;
+        var roots = new[] { new { Token = "{gameFolder}", Value = installedDestination },
+            new { Token = "{localAppData}", Value = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) },
+            new { Token = "{programFiles}", Value = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) },
+            new { Token = "{programFilesX86}", Value = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) } };
+        foreach (var root in roots) if (candidate.StartsWith(root.Token, StringComparison.Ordinal))
+        {
+            candidate = root.Value + candidate.Substring(root.Token.Length);
+            return File.Exists(candidate) ? candidate : null;
+        }
+        return null;
     }
 
     private static bool IsOverlayInstalled(string folder)
@@ -1413,5 +1427,5 @@ internal sealed class InstallerForm : Form
         }
     }
     protected override void Dispose(bool disposing)
-    { if (disposing) { timer.Dispose(); if (optionalToolsCheck != null) { optionalToolsCheck.Cancel(); optionalToolsCheck.Dispose(); } if (portheonLogo.Image != null) portheonLogo.Image.Dispose(); if (overlayLogo.Image != null) overlayLogo.Image.Dispose(); if (portheonSetup != null) portheonSetup.Dispose(); } base.Dispose(disposing); }
+        { if (disposing) { timer.Dispose(); if (optionalToolsCheck != null) { optionalToolsCheck.Cancel(); optionalToolsCheck.Dispose(); } if (portheonLogo.Image != null) portheonLogo.Image.Dispose(); if (overlayLogo.Image != null) overlayLogo.Image.Dispose(); } base.Dispose(disposing); }
 }
