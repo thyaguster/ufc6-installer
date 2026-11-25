@@ -148,7 +148,7 @@ optically sized at 16 px within the same spacing as the 20 px Xbox circles.
 The two optional-tool cards are populated by optional-tools.json in the public
 GitHub repository. Each slot can be disabled or given another name, description,
 note, full setup instructions, GitHub owner/repository and installation behavior
-without rebuilding setup.exe. The first slot defaults to Actions Overlay; the
+without rebuilding setup.exe. The first slot defaults to Parsectagon Overlay; the
 second is disabled. A visible Instructions button displays the full steps.
 installMode is "installer" for a Windows setup EXE or "github" for software
 that users must install manually. The GitHub mode shows the release link and
@@ -157,7 +157,11 @@ installerPattern matching exactly one EXE in the latest stable GitHub release.
 installOrder sets the order when both are selected (lower runs first); the
 installer waits for the first setup to close before opening the next.
 installerArguments can contain {gameFolder}, replaced with the selected game
-destination in quotes. detectedFile can be a path beginning with {gameFolder},
+destination in quotes. For setup programs that can target a separate folder,
+set chooseFolder to true, provide a folderPrompt, and include {selectedFolder}
+in installerArguments. The installer asks for that folder and passes it to the
+setup executable in quotes. The setup program remains responsible for checking
+whether the chosen folder is compatible. detectedFile can be a path beginning with {gameFolder},
 {localAppData}, {programFiles}, or {programFilesX86}; if found, setup asks
 before reinstalling. See optional-tools.json for a working example. Only the
 repository owner should edit that file: an enabled installer slot can launch a
@@ -165,21 +169,24 @@ verified executable from the configured repository.
 The installer validates the GitHub asset URL, filename, size and published
 SHA-256 before opening it. If the configuration cannot be loaded, both optional
 tool cards stay hidden and game installation still works.
-UFC 6 Actions Overlay has its own card above PORTHEON, with the project's icon,
+UFC 6 Parsectagon Overlay has its own card above PORTHEON, with the project's icon,
 a short feature summary, GitHub link and optional install switch (off by default).
 It downloads the latest stable standalone setup from thyaguster/ufc6-actions-overlay
-and verifies its GitHub asset SHA-256. The overlay targets the PORTHEON launcher
-folder games\UFC6; its own installer checks engine compatibility before changes.
+and verifies its GitHub asset SHA-256. Its own installer checks engine
+compatibility before changes.
 When both optional setups are selected, PORTHEON opens first. This installer waits
-for it to close before opening overlay setup, prefilling games\UFC6 if detected.
+for it to close before opening overlay setup. The UFC installer asks for
+either a PORTHEON games\UFC6 folder or a Kyty UFC 6 engine folder and passes
+it to overlay setup. The overlay setup verifies engine compatibility before
+installing; selecting a folder does not bypass that check.
 Cancellation keeps the game and leaves any already-open external setup running.
-Retry resumes pending setups. Overlay setup is interactive; choose/check the
-launcher folder and close UFC 6/PORTHEON before applying it. The project includes
+Retry resumes pending setups. Overlay setup is interactive; check the chosen
+engine folder and close UFC 6 and its launcher before applying it. The project includes
 its own in-game button-icon helper; the Game setup page notes that icons can also
-be changed later in UFC 6 Actions Overlay. Our selector sets only the initial
+be changed later in UFC 6 Parsectagon Overlay. Our selector sets only the initial
 game icons. No game-data repack is required for either optional setup. If
 PORTHEON or the overlay is detected, setup asks before running that optional
-installer again; built-in overlay detection checks the selected game folder.
+installer again; built-in overlay detection checks the chosen engine folder.
 The performance dropdown and popup use the same dark palette, rounded border,
 and red selection accent, with arrow-key navigation and accessibility support.
 The Play on PC with PORTHEON panel displays its official README logo and a short

@@ -815,7 +815,7 @@ internal sealed class InstallerForm : Form
         playStationIcons.Text = "PlayStation"; playStationIcons.SetBounds(16, 30, 278, 64); playStationIcons.Checked = true;
         xboxIcons.Text = "Xbox"; xboxIcons.SetBounds(306, 30, 278, 64); xboxIcons.Enabled = Program.Package.XboxIconsBytes > 0;
         foreach (var choice in new[] { playStationIcons, xboxIcons }) iconPanel.Controls.Add(choice);
-        LabelAt(iconPanel, "Button icons can be changed later in UFC 6 Actions Overlay.", 16, 96, 568, 17, 8, Muted, FontStyle.Regular);
+        LabelAt(iconPanel, "Button icons can be changed later in UFC 6 Parsectagon Overlay.", 16, 96, 568, 17, 8, Muted, FontStyle.Regular);
         xboxIcons.CheckedChanged += delegate { RefreshReadiness(); };
         overlayPanel = new InfoCard { Location = new Point(280, 556), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(overlayPanel);
         overlayLogo.SetBounds(16, 14, 56, 56); overlayLogo.SizeMode = PictureBoxSizeMode.Zoom;
@@ -823,10 +823,10 @@ internal sealed class InstallerForm : Form
         using (var image = Image.FromStream(stream)) overlayLogo.Image = new Bitmap(image);
         overlayPanel.Controls.Add(overlayLogo);
         LabelAt(overlayPanel, "OPTIONAL TOOL", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
-        overlayTitle = LabelAt(overlayPanel, "UFC 6 Actions Overlay", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
+        overlayTitle = LabelAt(overlayPanel, "UFC 6 Parsectagon Overlay", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
         var overlayInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; overlayPanel.Controls.Add(overlayInfo);
-        overlayDescription = LabelAt(overlayInfo, "Controller-friendly cheats, screenshots, Photo Mode, settings,\nand restart/quit actions on supported PORTHEON builds.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
-        overlayNote = LabelAt(overlayPanel, "Choose PORTHEON's games\\UFC6 launcher folder in overlay setup.", 16, 122, 568, 22, 9, Color.White, FontStyle.Regular);
+        overlayDescription = LabelAt(overlayInfo, "Controller-friendly cheats, screenshots, Photo Mode, settings,\nand restart/quit actions on compatible UFC 6 engines.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
+        overlayNote = LabelAt(overlayPanel, "Choose a PORTHEON or Kyty UFC 6 engine folder when prompted.", 16, 122, 568, 22, 9, Color.White, FontStyle.Regular);
         ButtonAt(overlayGithub, "Get from GitHub", 16, 146, 190, false); overlayGithub.Height = 32; overlayPanel.Controls.Add(overlayGithub);
         overlayGithub.Click += delegate { if (toolSlots[0] != null) Process.Start(new ProcessStartInfo(PortheonDownloader.ReleasesPageFor(toolSlots[0])) { UseShellExecute = true }); };
         ButtonAt(toolInstructions[0], "Instructions", 215, 146, 110, false); toolInstructions[0].Height = 32; overlayPanel.Controls.Add(toolInstructions[0]);
@@ -1232,8 +1232,18 @@ internal sealed class InstallerForm : Form
                 int index = pending[position];
                 var slot = toolSlots[index];
                 product = slot.name;
+                string selectedFolder = null;
+                if (slot.chooseFolder)
+                {
+                    using (var picker = new FolderBrowserDialog { Description = slot.folderPrompt, ShowNewFolderButton = false })
+                    {
+                        if (picker.ShowDialog(this) != DialogResult.OK) throw new OperationCanceledException("Optional tool folder selection cancelled.");
+                        selectedFolder = Path.GetFullPath(picker.SelectedPath);
+                    }
+                    if (!Directory.Exists(selectedFolder)) throw new IOException("The selected folder no longer exists.");
+                }
                 string found = DetectOptionalTool(slot);
-                string gameFolder = FindOverlayGameFolder(installedDestination);
+                string gameFolder = FindOverlayGameFolder(selectedFolder ?? installedDestination);
                 if (found == null && slot.repository == "XAndromedaXR/PORTHEON") found = FindPortheon();
                 else if (found == null && slot.repository == "thyaguster/ufc6-actions-overlay" && IsOverlayInstalled(gameFolder)) found = gameFolder;
                 if (!String.IsNullOrEmpty(found) && !ConfirmRerunSetup(product, found))
@@ -1247,7 +1257,12 @@ internal sealed class InstallerForm : Form
                     string executable = await Task.Run(delegate { return PortheonDownloader.DownloadLatest(cache, cancellation.Token, report, slot); });
                     cancellation.Token.ThrowIfCancellationRequested();
                     var info = new ProcessStartInfo(executable) { UseShellExecute = true };
-                    if (!String.IsNullOrWhiteSpace(slot.installerArguments)) info.Arguments = slot.installerArguments.Replace("{gameFolder}", "\"" + installedDestination + "\"");
+                    if (!String.IsNullOrWhiteSpace(slot.installerArguments))
+                    {
+                        string arguments = slot.installerArguments.Replace("{gameFolder}", QuoteWindowsPath(installedDestination));
+                        if (slot.chooseFolder) arguments = arguments.Replace("{selectedFolder}", QuoteWindowsPath(selectedFolder));
+                        info.Arguments = arguments;
+                    }
                     else if (slot.repository == "thyaguster/ufc6-actions-overlay" && gameFolder != null && Directory.Exists(gameFolder)) info.Arguments = "--folder \"" + gameFolder + "\"";
                     using (Process setup = Process.Start(info))
                     {
@@ -1307,6 +1322,12 @@ internal sealed class InstallerForm : Form
             return File.Exists(candidate) ? candidate : null;
         }
         return null;
+    }
+
+    private static string QuoteWindowsPath(string path)
+    {
+        if (String.IsNullOrEmpty(path) || path.IndexOf('"') >= 0) throw new IOException("Invalid optional setup folder.");
+        return "\"" + path + (path.EndsWith("\\", StringComparison.Ordinal) ? "\\" : "") + "\"";
     }
 
     private static bool IsOverlayInstalled(string folder)

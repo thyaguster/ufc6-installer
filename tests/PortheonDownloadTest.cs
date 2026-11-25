@@ -58,6 +58,11 @@ internal static class PortheonDownloadTest
         var configured = PortheonDownloader.ParseOptionalToolsConfig(configuredJson);
         if (configured.slots[0].installOrder != 15 || configured.slots[0].installerArguments != "--target {gameFolder}" || configured.slots[0].detectedFile != @"{gameFolder}\Project.exe")
             throw new Exception("Configurable setup behavior was not parsed.");
+        string folderJson = configJson.Replace("\"installerPattern\":\"Project-*.exe\"", "\"installerPattern\":\"Project-*.exe\",\"chooseFolder\":true,\"folderPrompt\":\"Choose a launcher folder\",\"installerArguments\":\"--folder {selectedFolder}\"");
+        var folderConfig = PortheonDownloader.ParseOptionalToolsConfig(folderJson);
+        if (!folderConfig.slots[0].chooseFolder || folderConfig.slots[0].folderPrompt != "Choose a launcher folder") throw new Exception("Folder choice was not parsed.");
+        try { PortheonDownloader.ParseOptionalToolsConfig(folderJson.Replace("--folder {selectedFolder}", "--folder {gameFolder}")); throw new Exception("Folder prompt without selected-folder argument was accepted."); }
+        catch (IOException) { }
         var alternateRelease = new PortheonDownloader.Release { assets = new[] { new PortheonDownloader.Asset { name="Project-1.exe", size=123, digest="sha256:"+new String('a',64), browser_download_url="https://github.com/example/project/releases/download/v1/Project-1.exe" } } };
         if (PortheonDownloader.SelectInstaller(alternateRelease, config.slots[0]).name != "Project-1.exe") throw new Exception("Replacement project was not accepted.");
         alternateRelease.assets[0].browser_download_url = "https://github.com/other/project/releases/download/v1/Project-1.exe";

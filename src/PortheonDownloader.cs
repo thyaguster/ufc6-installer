@@ -33,6 +33,8 @@ internal static class PortheonDownloader
         public int installOrder { get; set; }
         public string installerArguments { get; set; }
         public string detectedFile { get; set; }
+        public bool chooseFolder { get; set; }
+        public string folderPrompt { get; set; }
     }
 
     internal sealed class Release
@@ -97,8 +99,11 @@ internal static class PortheonDownloader
                 !Regex.IsMatch(slot.repository, @"\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z") ||
                 (slot.installMode != "installer" && slot.installMode != "github") || slot.installOrder < 0 || slot.installOrder > 1000 ||
                 String.IsNullOrWhiteSpace(slot.instructions) || slot.instructions.Length > 1200 ||
+                (slot.chooseFolder && (slot.installMode != "installer" || String.IsNullOrWhiteSpace(slot.folderPrompt) || slot.folderPrompt.Length > 150 ||
+                String.IsNullOrWhiteSpace(slot.installerArguments) || !slot.installerArguments.Contains("{selectedFolder}"))) ||
                 (slot.installerArguments != null && (slot.installerArguments.Length > 250 || slot.installerArguments.Contains("\r") || slot.installerArguments.Contains("\n") ||
-                Regex.IsMatch(slot.installerArguments.Replace("{gameFolder}", ""), @"\{[^{}]*\}"))) ||
+                Regex.IsMatch(slot.installerArguments.Replace("{gameFolder}", "").Replace("{selectedFolder}", ""), @"\{[^{}]*\}") ||
+                (!slot.chooseFolder && slot.installerArguments.Contains("{selectedFolder}")))) ||
                 (slot.detectedFile != null && (slot.detectedFile.Length > 250 || !Regex.IsMatch(slot.detectedFile, @"\A\{(gameFolder|localAppData|programFiles|programFilesX86)\}\\[^:*?\""<>|]+\z") ||
                 Regex.IsMatch(slot.detectedFile, @"(^|\\)\.\.(\\|$)"))) ||
                 (slot.installMode == "installer" && (slot.installerPattern == null || !Regex.IsMatch(slot.installerPattern, @"\A[A-Za-z0-9._*-]+\.exe\z", RegexOptions.IgnoreCase) ||
@@ -130,7 +135,7 @@ internal static class PortheonDownloader
 
     internal static Asset SelectInstaller(Release release, bool overlay = false)
     {
-        string product = overlay ? "UFC 6 Actions Overlay" : "PORTHEON";
+        string product = overlay ? "UFC 6 Parsectagon Overlay" : "PORTHEON";
         string pattern = overlay ? @"^UFC6-Actions-Overlay-Setup-[A-Za-z0-9._-]+\.exe$" : @"^PORTHEON-[A-Za-z0-9._-]+-Setup\.exe$";
         string prefix = overlay ? OverlayDownloadPrefix : DownloadPrefix;
         if (release == null || release.draft || release.prerelease || release.assets == null)
@@ -219,7 +224,7 @@ internal static class PortheonDownloader
 
     internal static string DownloadLatest(string cache, CancellationToken cancellation, Action<int, string> progress, bool overlay = false)
     {
-        string product = overlay ? "UFC 6 Actions Overlay" : "PORTHEON";
+        string product = overlay ? "UFC 6 Parsectagon Overlay" : "PORTHEON";
         progress(0, "Checking latest " + product + " release...");
         var asset = GetLatest(cancellation, overlay);
         InstallLog.Write(product + " asset=" + asset.name + "; URL=" + asset.browser_download_url + "; SHA256=" + asset.digest);

@@ -96,7 +96,7 @@ try {
     $next.PerformClick()
     $summary = $form.GetType().GetField('summaryTools', $flags).GetValue($form)
     if ($page.GetValue($form) -ne 2 -or !$mode.Visible -or $overlay.Visible -or $next.Text -ne 'Install game') { throw 'Final installation page is incorrect.' }
-    if ($summary.Text -notmatch 'Actions Overlay' -or $form.GetType().GetField('summaryIcons', $flags).GetValue($form).Text -ne 'Xbox') { throw 'Summary lost chosen options.' }
+    if ($summary.Text -notmatch 'Parsectagon Overlay' -or $form.GetType().GetField('summaryIcons', $flags).GetValue($form).Text -ne 'Xbox') { throw 'Summary lost chosen options.' }
     if ($form.GetType().GetField('attempted', $flags).GetValue($form)) { throw 'Next started installation before confirmation.' }
     $destination = $form.GetType().GetField('folder', $flags).GetValue($form)
     $originalDestination = $destination.Text
