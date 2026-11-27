@@ -1,0 +1,45 @@
+﻿{
+    "format":  1,
+    "archiveBytes":  59925374530,
+    "payloadSha256":  "5BC71054FA097287DEEF866925D84A1834E20C6584AD0D73A5BD8A540E83E42B",
+    "headerBytes":  65536,
+    "headerSha256":  "1ABFA0BCDC9CF89EC439F45D9BB0942154AD9F4BCF62B835D821C1560F04950B",
+    "parts":  [
+                  {
+                      "name":  "data.bin.001",
+                      "offset":  65536,
+                      "length":  10737418240,
+                      "sha256":  "AF5BEBC416B24E3DEFA23CB213B26E7E17917C51843147E45CA98B0CD9EB100C"
+                  },
+                  {
+                      "name":  "data.bin.002",
+                      "offset":  10737483776,
+                      "length":  10737418240,
+                      "sha256":  "9F0FF8273B90D354314F9A02D63B7C3F865778F7C58A242B6C560E500BEF2372"
+                  },
+                  {
+                      "name":  "data.bin.003",
+                      "offset":  21474902016,
+                      "length":  10737418240,
+                      "sha256":  "7C29813A08D3FB17A6A5B1057BDE71858C250FDCEB6112AAADF99DAAD4BE7612"
+                  },
+                  {
+                      "name":  "data.bin.004",
+                      "offset":  32212320256,
+                      "length":  10737418240,
+                      "sha256":  "AA77AA390DCF0A960FCE5723EABB6D777247F7D41178F5ECA8796E339A95A2FB"
+                  },
+                  {
+                      "name":  "data.bin.005",
+                      "offset":  42949738496,
+                      "length":  10737418240,
+                      "sha256":  "3047F128059352891C08E1C4B29785EC671CA86736B70F0F26D40C7D2B1CF2A5"
+                  },
+                  {
+                      "name":  "data.bin.006",
+                      "offset":  53687156736,
+                      "length":  6238217794,
+                      "sha256":  "66DAD01C9428F2BD06E3B94E893CE6A7870479A340BE8B3800B11F6FA96F700B"
+                  }
+              ]
+}

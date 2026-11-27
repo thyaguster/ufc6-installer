@@ -1,0 +1,30 @@
+REPAIRING A data.bin THAT FAILS THE INTEGRITY CHECK
+
+Use tools\check-repair-data-bin.ps1 with data-bin-repair.json from this repository.
+Both files are small and contain no game data. This procedure applies only to
+the signed UFC 6 package whose game version is 01.006.000 and whose data.bin is
+59,925,374,530 bytes. A file with a different length needs a different remedy.
+
+1. Diagnose the existing download (PowerShell):
+
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\check-repair-data-bin.ps1 -DataBin 'D:\Downloads\data.bin'
+
+   This reads the whole file and prints OK or BAD for each numbered 10 GiB
+   range. The diagnostic does not change data.bin. The installer must be closed.
+
+2. Download only the numbered part(s) marked BAD from the matching official
+   split release. Keep the exact name, such as data.bin.003. For each one:
+
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\check-repair-data-bin.ps1 -DataBin 'D:\Downloads\data.bin' -ReplacementPart 'D:\Downloads\data.bin.003'
+
+   The script validates the replacement part's size and SHA-256 before writing
+   to data.bin. Do not interrupt it while it is writing. If interrupted, run
+   the same command again with the same validated part.
+
+3. Repeat step 1. When every range says OK, run the normal setup.exe. It will
+   still verify the complete signed package before extraction.
+
+If the header is damaged, the file length differs, or many ranges are BAD,
+download the complete package again. Never use a setup.exe that skips its full
+integrity check: a 7-Zip file CRC check cannot replace the package signature
+and whole-payload SHA-256 check.

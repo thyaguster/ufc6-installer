@@ -24,6 +24,8 @@ parts are direct 7z volumes: they are extracted without rebuilding data.bin or
 making a second compressed copy. The signed data.bin.header and every payload
 part must be present; the payload is verified by the same signature and SHA-256
 checks as a single data.bin.
+For a full-size data.bin that fails the payload hash, REPAIR.txt explains how
+to identify a damaged 10 GiB range and replace only its matching split part.
 The interface has three steps: Game setup, Mods, and Install.
 Back/Next preserves selections. The final page summarizes the chosen destination,
 game options and downloads, with performance controls, progress and Play now.
