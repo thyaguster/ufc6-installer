@@ -589,6 +589,42 @@ internal sealed class InfoCard : Panel
     }
 }
 
+internal sealed class XboxButtonPreview : Control
+{
+    private static readonly Color[] ButtonColors = {
+        Color.FromArgb(105, 211, 129), Color.FromArgb(244, 111, 120),
+        Color.FromArgb(109, 174, 246), Color.FromArgb(247, 205, 95)
+    };
+
+    internal XboxButtonPreview()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        AccessibleRole = AccessibleRole.Graphic;
+        AccessibleName = "Xbox button preview: A, B, X, Y";
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Graphics g = e.Graphics;
+        g.Clear(Parent == null ? Color.FromArgb(35, 38, 47) : Parent.BackColor);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        GraphicsState state = g.Save();
+        g.ScaleTransform(Width / 116f, Height / 28f);
+        using (var font = new Font("Segoe UI", 11, FontStyle.Bold, GraphicsUnit.Pixel))
+        using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                float x = 2 + i * 29;
+                using (var pen = new Pen(ButtonColors[i], 2f)) g.DrawEllipse(pen, x, 2, 23, 23);
+                using (var brush = new SolidBrush(ButtonColors[i]))
+                    g.DrawString("ABXY"[i].ToString(), font, brush, new RectangleF(x + 1, 2, 22, 23), format);
+            }
+        }
+        g.Restore(state);
+    }
+}
+
 internal sealed class InstallerForm : Form
 {
     private static readonly Color Background = Color.FromArgb(24, 25, 30);
@@ -623,6 +659,7 @@ internal sealed class InstallerForm : Form
     private readonly PictureBox overlayLogo = new PictureBox();
     private readonly Button playNow = new SoftButton();
     private readonly PictureBox secondModLogo = new PictureBox();
+    private readonly XboxButtonPreview xboxPreview = new XboxButtonPreview();
     private InfoCard overlayPanel;
     private InfoCard launcherPanel;
     private Label overlayTitle, overlayDescription, overlayNote, launcherTitle, launcherDescription, launcherNote;
@@ -755,6 +792,7 @@ internal sealed class InstallerForm : Form
         launcherPanel.Controls.Add(secondModLogo);
         LabelAt(launcherPanel, "OPTIONAL TOOL", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
         launcherTitle = LabelAt(launcherPanel, "UFC Controller Icons Mod", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
+        xboxPreview.SetBounds(464, 35, 116, 28); launcherPanel.Controls.Add(xboxPreview);
         var launcherInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; launcherPanel.Controls.Add(launcherInfo);
         launcherDescription = LabelAt(launcherInfo, "Change UFC 6 prompts to Xbox, PlayStation, Switch, or keyboard.\nIncludes reversible backups.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
         launcherNote = LabelAt(launcherPanel, "In the mod, choose UFC 6 or browse to the installed game folder.", 16, 122, 565, 22, 9, Color.White, FontStyle.Regular);
@@ -943,10 +981,13 @@ internal sealed class InstallerForm : Form
         bool secondHasLogo = toolSlots[1] != null && toolSlots[1].repository == "thyaguster/ufc-controller-icons-mod";
         if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = overlayHasLogo; }
         if (toolSlots[1] != null) { launcherTitle.Text = toolSlots[1].name; launcherDescription.Text = toolSlots[1].description; launcherNote.Text = toolSlots[1].note; secondModLogo.Visible = secondHasLogo; }
+        xboxPreview.Visible = secondHasLogo;
         installOverlay.Visible = toolSlots[0] != null && toolSlots[0].installMode == "installer";
         installPortheon.Visible = toolSlots[1] != null && toolSlots[1].installMode == "installer";
         overlayTitle.Left = (int)Math.Round((overlayHasLogo ? 82 : 16) * scale);
         launcherTitle.Left = (int)Math.Round((secondHasLogo ? 82 : 16) * scale);
+        launcherTitle.Width = (int)Math.Round((secondHasLogo ? 370 : 500) * scale);
+        launcherTitle.AutoEllipsis = secondHasLogo;
         SetOptionalToolsOnline(optionalToolsOnline, null);
         if (summaryDestination != null) UpdateSummary();
     }

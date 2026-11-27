@@ -68,9 +68,11 @@ foreach ($case in $cases) {
         $secondTitle = $form.GetType().GetField('launcherTitle', $flags).GetValue($form)
         $firstLogo = $form.GetType().GetField('overlayLogo', $flags).GetValue($form)
         $secondLogo = $form.GetType().GetField('secondModLogo', $flags).GetValue($form)
+        $buttonPreview = $form.GetType().GetField('xboxPreview', $flags).GetValue($form)
         if ($secondCard.Top - $firstCard.Bottom -lt [Math]::Round(8 * $case.Scale) -or $modsStatus.Top -lt $secondCard.Bottom -or
-            $firstTitle.Left -le $firstLogo.Right -or $secondTitle.Left -le $secondLogo.Right) {
-            $issues.Add("$($case.Scale)x: remote mod cards, logos or status overlap after scaling")
+            $firstTitle.Left -le $firstLogo.Right -or $secondTitle.Left -le $secondLogo.Right -or
+            $buttonPreview.Left -le $secondTitle.Right -or $buttonPreview.Right -gt $secondCard.ClientSize.Width) {
+            $issues.Add("$($case.Scale)x: remote mod cards, logos, Xbox preview or status overlap after scaling")
         }
         $form.GetType().GetField('installOverlay', $flags).GetValue($form).Checked = $true
         $form.GetType().GetField('installPortheon', $flags).GetValue($form).Checked = $true

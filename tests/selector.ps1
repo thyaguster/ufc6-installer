@@ -86,7 +86,8 @@ try {
     if ($page.GetValue($form) -ne 0 -or $back.Enabled -or $next.Text -ne 'Next') { throw 'Initial wizard navigation is incorrect.' }
     $overlay.Checked = $true; $iconsMod.Checked = $true
     $next.PerformClick()
-    if ($page.GetValue($form) -ne 1 -or !$overlay.Visible -or !$launcherPanel.Visible -or $alterEgos.Visible) { throw "Next did not show both mods: page=$($page.GetValue($form)), overlay=$($overlay.Visible), icons=$($launcherPanel.Visible), alter=$($alterEgos.Visible)" }
+    $xboxPreview = $form.GetType().GetField('xboxPreview', $flags).GetValue($form)
+    if ($page.GetValue($form) -ne 1 -or !$overlay.Visible -or !$launcherPanel.Visible -or !$xboxPreview.Visible -or $alterEgos.Visible) { throw "Next did not show both mods and the Xbox preview: page=$($page.GetValue($form)), overlay=$($overlay.Visible), icons=$($launcherPanel.Visible), preview=$($xboxPreview.Visible), alter=$($alterEgos.Visible)" }
     $qa = Join-Path ([IO.Path]::GetTempPath()) 'ufc6-installer-ui-qa'
     New-Item -ItemType Directory -Path $qa -Force | Out-Null
     $modsPreview = New-Object Drawing.Bitmap($form.Width, $form.Height)
