@@ -16,10 +16,9 @@ $manifest = Join-Path $testRoot 'package.json'
 & (Join-Path $root 'build.ps1') -Source $source -OutputDirectory $output -PackageManifest $manifest
 $exe = Join-Path $output 'setup.exe'
 $archive = Join-Path $output 'data.bin'
-function Invoke-TestInstaller([string]$Target, [switch]$WithoutAlterEgos, [switch]$XboxIcons, [string]$Mode = 'Balanced') {
+function Invoke-TestInstaller([string]$Target, [switch]$WithoutAlterEgos, [string]$Mode = 'Balanced') {
     $arguments = @('--extract', ('"' + $Target + '"'))
     if ($WithoutAlterEgos) { $arguments += '--without-alter-egos' }
-    if ($XboxIcons) { $arguments += '--xbox-icons' }
     $arguments += "--mode=$Mode"
     $process = Start-Process -FilePath $exe -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
     return $process.ExitCode
@@ -32,7 +31,7 @@ foreach ($file in Get-ChildItem -LiteralPath $source -Recurse -File -Force) {
 if (!(Test-Path -LiteralPath "$destination\empty folder" -PathType Container)) { throw 'Empty folder was lost.' }
 if (Test-Path -LiteralPath "$destination\fakelib") { throw 'Unselected Alter Egos files were installed.' }
 if (Test-Path -LiteralPath "$destination\__ufc6_installer__") { throw 'Package payloads leaked into a base-only installation.' }
-if (Test-Path -LiteralPath "$destination\Mods\Xbox Icons") { throw 'Default PlayStation selection ran the Xbox mod.' }
+if (Test-Path -LiteralPath "$destination\Mods\Xbox Icons") { throw 'An unselected icon mod was installed with the game.' }
 foreach ($mode in @('Fast','Quiet')) {
     $modeTarget = Join-Path $testRoot ("mode-$mode")
     if ((Invoke-TestInstaller $modeTarget -WithoutAlterEgos -Mode $mode) -ne 0) { throw "Extraction failed in $mode mode." }
@@ -72,9 +71,6 @@ foreach ($file in Get-ChildItem -LiteralPath $addonRoot -Recurse -File) {
 if (Test-Path -LiteralPath "$afterRebuild\PPSA23566") { throw 'Alter Egos was installed into a nested game folder.' }
 if (Test-Path -LiteralPath "$afterRebuild\__ufc6_installer__") { throw 'Package payloads leaked into the game installation.' }
 if (@(Get-ChildItem -LiteralPath $afterRebuild -Force -Directory | Where-Object Name -Like '.alter-egos-*').Count) { throw 'Alter Egos temporary files were left behind.' }
-$unsupported = Join-Path $testRoot 'unsupported xbox fixture'
-if ((Invoke-TestInstaller $unsupported -WithoutAlterEgos -XboxIcons) -eq 0) { throw 'Xbox mod accepted an incompatible game fixture.' }
-if (Test-Path -LiteralPath $unsupported) { throw 'Failed Xbox mod left a partial installation.' }
 $savedArchive = Join-Path $output 'saved-data.bin'
 Move-Item -LiteralPath $archive -Destination $savedArchive
 try {
@@ -90,5 +86,5 @@ foreach ($required in @('Options: AlterEgos=', 'ButtonIcons=PlayStation', 'SUCCE
 $version = (Get-Item -LiteralPath $exe).VersionInfo
 if ($version.ProductName -ne 'EA SPORTS UFC 6 Installer' -or $version.FileVersion -ne '1.0.0.0') { throw 'Executable metadata is missing.' }
 Write-Host 'PASS: persistent diagnostic logs contain selected options, success stages and failures; executable product/version metadata verified.'
-Write-Host 'PASS: file hashes, Unicode paths, hidden files, empty folders, existing destination refusal, corruption and missing archive detection, independent setup rebuild, default Alter Egos overlay, opt-out preserves base executable, PlayStation default, incompatible Xbox mod cleanup.'
+Write-Host 'PASS: file hashes, Unicode paths, hidden files, empty folders, existing destination refusal, corruption and missing archive detection, independent setup rebuild, default Alter Egos overlay, and opt-out preserving the base executable.'
 Write-Host "Test artifacts: $testRoot"

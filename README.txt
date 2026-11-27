@@ -24,7 +24,7 @@ parts are direct 7z volumes: they are extracted without rebuilding data.bin or
 making a second compressed copy. The signed data.bin.header and every payload
 part must be present; the payload is verified by the same signature and SHA-256
 checks as a single data.bin.
-The interface has three steps: Game setup, Optional tools, and Install.
+The interface has three steps: Game setup, Mods, and Install.
 Back/Next preserves selections. The final page summarizes the chosen destination,
 game options and downloads, with performance controls, progress and Play now.
 Navigation is locked while installing; Play now becomes available on completion.
@@ -33,9 +33,9 @@ Alter Egos component. It is never embedded in setup.exe. The installer applies
 it only when selected and leaves its internal payload folder out of the game.
 Keep the RAR with the packing sources; do not distribute it as a third file.
 Updating this component changes data.bin; setup-only rebuilds need no RAR file.
-The Xbox icon mod's standalone v1.0.1 patcher is also embedded in setup.exe.
-Default build path: C:\Scripts\kytyps5-ufc6-xbox-buttons-mod\release\UFC6-Xbox-Icons\UFC6-Xbox-Icons.exe.
-Override with -XboxIconsPatcher 'path', or pass '' to omit the Xbox option.
+Button prompts remain at the game's original PlayStation setting during game
+extraction. The separate Controller Icons Mod is offered on the Mods page and
+is downloaded from its official GitHub release only when selected.
 Requires 64-bit Windows with .NET Framework 4.5+ on the destination computer.
 setup.exe uses the supplied UFC 6 icon and embeds product/file metadata:
 EA SPORTS UFC 6 Installer, installer version 1.0.0. Game version is shown
@@ -104,7 +104,7 @@ Run setup.exe and choose a NEW destination folder. Setup verifies data.bin,
 checks available space, extracts to a temporary sibling folder, and renames it
 only on success. Existing unrelated destinations are refused. A recognized UFC 6
 folder is read-only: setup skips game extraction and can be used only to manage
-the optional tools. Cancellation removes the temporary extraction. No admin
+the optional mods. Cancellation removes the temporary extraction. No admin
 access, shortcuts, registry entries or uninstaller are added. Install into a
 folder your Windows user can write to.
 7-Zip and its license notice are embedded; license/source details are in About.
@@ -138,18 +138,15 @@ These are ceilings, not target utilization. Modes do not change memory required
 for decompression, archive contents, or game files. Disk I/O is not hard-capped.
 The optional PORTHEON download uses its normal network behavior independently.
 Technical reference: https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_cpu_rate_control_information
-Package details, destination/free space, installation options, PORTHEON, and
-progress are grouped in bordered cards. The button-icon selector shows colored
-PlayStation shapes or Xbox A/B/X/Y, with a selected border and native radio-button
-keyboard/accessibility behavior. Play now is visibly grey until it is available.
+Package details, destination/free space, installation options, mods, and
+progress are grouped in bordered cards. Play now is visibly grey until available.
 Alter Egos uses a pill switch (on by default). Action buttons use rounded corners
-with hover, pressed, keyboard-focus and disabled states. PlayStation symbols are
-optically sized at 16 px within the same spacing as the 20 px Xbox circles.
+with hover, pressed, keyboard-focus and disabled states.
 The two optional-tool cards are populated by optional-tools.json in the public
 GitHub repository. Each slot can be disabled or given another name, description,
 note, full setup instructions, GitHub owner/repository and installation behavior
-without rebuilding setup.exe. The first slot defaults to Parsectagon Overlay; the
-second is disabled. A visible Instructions button displays the full steps.
+without rebuilding setup.exe. The first slot is Parsectagon Overlay and the
+second is UFC Controller Icons Mod. Instructions opens each mod's full steps.
 installMode is "installer" for a Windows setup EXE or "github" for software
 that users must install manually. The GitHub mode shows the release link and
 instructions without an auto-install switch. Installer mode needs an
@@ -169,44 +166,38 @@ verified executable from the configured repository.
 The installer validates the GitHub asset URL, filename, size and published
 SHA-256 before opening it. If the configuration cannot be loaded, both optional
 tool cards stay hidden and game installation still works.
-UFC 6 Parsectagon Overlay has its own card above PORTHEON, with the project's icon,
+UFC 6 Parsectagon Overlay has its own card above Controller Icons Mod, with the project's icon,
 a short feature summary, GitHub link and optional install switch (off by default).
 It downloads the latest stable standalone setup from thyaguster/ufc6-parsectagon-overlay
 and verifies its GitHub asset SHA-256. Its own installer checks engine
 compatibility before changes.
-When both optional setups are selected, PORTHEON opens first. This installer waits
-for it to close before opening overlay setup. The UFC installer asks for
+When both mods are selected, overlay setup opens first. The UFC installer waits
+for it to close before opening Controller Icons Mod. The UFC installer asks for
 either a PORTHEON games folder, games\UFC6 folder, or Clean Kyty folder and passes
 it to overlay setup. The overlay setup verifies engine compatibility before
 installing; selecting a folder does not bypass that check.
 Cancellation keeps the game and leaves any already-open external setup running.
 Retry resumes pending setups. Overlay setup is interactive; check the chosen
-engine folder and close UFC 6 and its launcher before applying it. The project includes
-its own in-game button-icon helper; the Game setup page notes that icons can also
-be changed later in UFC 6 Parsectagon Overlay. Our selector sets only the initial
-game icons. No game-data repack is required for either optional setup. If
-PORTHEON or the overlay is detected, setup asks before running that optional
-installer again; built-in overlay detection checks the chosen engine folder.
+engine folder and close UFC 6 and its launcher before applying it. The
+Controller Icons Mod is a separate interactive app for Xbox, PlayStation,
+Switch, and keyboard button prompts. It can use the installed UFC 6 folder,
+creates reversible backups, and can restore the original PlayStation prompts.
+No game-data repack is required for either mod. If an existing installation is
+detected, setup asks before running that mod again.
 The performance dropdown and popup use the same dark palette, rounded border,
 and red selection accent, with arrow-key navigation and accessibility support.
-The Play on PC with PORTHEON panel displays its official README logo and a short
-description sourced from that README. Play now opens an existing PORTHEON
-installation after the game files are installed. It checks common install paths
-and Windows application registrations, or lets the user locate PORTHEON.exe.
-In PORTHEON, select UFC 6 and, if needed, choose this folder in Game files.
-Get from GitHub opens the official latest release. Install it for me is optional
-and unchecked by default. After the
-game finishes installing, setup queries the latest stable release from the
-official XAndromedaXR/PORTHEON GitHub repository, downloads its Windows Setup.exe,
-and verifies GitHub's published SHA-256 digest and file size. It then opens the
-publisher's interactive installer; follow that setup to finish installing
-PORTHEON. If the launcher does not find the game, select this installation's
-folder in its Game files tab. No PORTHEON files are included in data.bin.
-Download failure or cancellation keeps the completed game installation intact
-and offers a retry. The Official GitHub link also opens the latest release.
+Play now on the final page opens an existing PORTHEON installation after the
+game files are installed. It checks common install paths and Windows application
+registrations, or lets the user locate PORTHEON.exe. In PORTHEON, select UFC 6
+and, if needed, choose this folder in Game files. PORTHEON is not included.
+Each mod has Get from GitHub and an unchecked Install it for me switch. The
+installer queries the latest stable release, verifies its published SHA-256
+digest and file size, then opens the publisher's interactive EXE. Download
+failure or cancellation keeps the completed game installation intact and
+offers a retry.
 Verified downloads are cached under %LOCALAPPDATA%\UFC6 Installer\Downloads.
 The game installation works offline when this optional download is unchecked.
-The Optional tools page checks access to GitHub when opened. If GitHub is not
+The Mods page checks access to GitHub when opened. If GitHub is not
 reachable, it shows an offline message and disables only those download controls;
 game setup and installation remain available offline.
 Install Alter Egos is checked by default. Selecting it applies the archive's
@@ -214,15 +205,9 @@ PPSA23566 contents over the game files before installation is finalized;
 unchecking it leaves the base game files intact. Installed size, file count,
 required working space, and progress reflect this choice. The overlay is applied
 only inside the new installation; the source game folder is never changed.
-Button icons defaults to PlayStation, which runs no icon patch. Xbox runs the
-included mod after extraction and Alter Egos, before the installation is
-finalized. The mod checks the game version and affected ranges, then creates a
-restore backup. Any patch failure aborts the new installation and removes it.
-Xbox installs the standalone mod tool at Mods\Xbox Icons\UFC6-Xbox-Icons.exe
-and preserves .ufc6-xbox-icons-backup.zip at the game root. Use that tool to
-restore PlayStation icons later. Its notices are included in its Licenses view.
-Xbox installed size is an estimate, allowing up to 20 MiB for the restore backup.
-Cancellation during icon patching waits for its write/rollback transaction.
+The game is installed with its original button prompts. Controller Icons Mod
+is optional and runs separately after the game install; its own UI handles
+game selection, prompt style, backups, and restoration.
 Use -AlterEgosArchive 'path' when packing to select another archive with the same
 folder layout, or -AlterEgosArchive '' to pack only the base game. These options
 do not change component contents during setup-only rebuilds.
@@ -230,10 +215,10 @@ do not change component contents during setup-only rebuilds.
 VALIDATION
   .\tests\smoke.ps1
   powershell.exe -NoProfile -File .\tests\signed-package.ps1
-  .\tests\xbox-icons.ps1
   .\tests\portheon.ps1
   .\tests\portheon.ps1 -Live
   .\tests\portheon.ps1 -Live -Overlay
+  .\tests\portheon.ps1 -Live -Icons
   .\tests\ui.ps1
   .\tests\performance.ps1
   powershell.exe -NoProfile -File .\tests\selector.ps1
@@ -245,23 +230,17 @@ rendered scale simulations, not changes to the Windows display configuration.
 tests/full-install.ps1 is queued in the background after pack-game.ps1 finishes.
 It builds the production setup.exe against the completed archive and creates a
 separate installation under R:\UFC6-installer-validation. It compares every
-installed file's SHA-256 against the base source or selected Alter Egos payload,
-then tests all 430 Xbox icon ranges and restoration on that full installation.
+installed file's SHA-256 against the base source or selected Alter Egos payload.
 Status: .build/full-test-state.json. Log: .build/full-install-test.log.
 It retains the verified installation for an interactive PORTHEON gameplay check;
 it does not label gameplay as passed without an in-game check.
 
-PORTHEON tests cover stable-release asset selection, official URLs, mandatory
-checksums, hashing, and cancellation. The optional live test downloads and
-verifies the latest official installer in .build; it does not execute it.
-
-The Xbox integration test copies only verified ranges from the source game into
-private sparse fixture files under .build, validates all 430 patched ranges,
-and tests restoration. It never writes to the source game folder.
+Download tests cover stable-release asset selection, official URLs, mandatory
+checksums, hashing, and cancellation. Optional live tests download and verify
+the latest official mod installers in .build; they do not execute them.
 
 --extract <new destination> runs the same engine without a window, for testing.
 Append --without-alter-egos to test an installation with Alter Egos unchecked.
-Append --xbox-icons to select Xbox; omitting it selects PlayStation.
 Append --mode=Fast, --mode=Balanced, or --mode=Quiet to select a performance mode.
 On failure this mode records the exception in the diagnostic log and exits 1.
 --inspect-package <report.json> verifies the signed manifest and reports metadata

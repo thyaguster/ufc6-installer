@@ -8,7 +8,7 @@ param(
     [ValidateSet('Normal', 'Ultra')][string]$Compression = 'Normal',
     [string]$SevenZipDirectory = 'C:\Program Files\7-Zip',
     [string]$AlterEgosArchive = "$PSScriptRoot\PPSA23566.rar",
-    [string]$XboxIconsPatcher = 'C:\Scripts\kytyps5-ufc6-xbox-buttons-mod\release\UFC6-Xbox-Icons\UFC6-Xbox-Icons.exe',
+    [string]$XboxIconsPatcher = '',
     [ValidateRange(0, 1024)][int]$SplitSizeGiB = 0
 )
 $ErrorActionPreference = 'Stop'
@@ -144,7 +144,7 @@ if ($Mode -ne 'Pack') {
             $extraResources += "/resource:$XboxIconsPatcher,xbox-icons.exe"
         } else { $settings | Add-Member -NotePropertyName XboxIconsBytes -NotePropertyValue 0 -Force }
         $settings | ConvertTo-Json | Set-Content -LiteralPath $setupManifest -Encoding UTF8
-        & $compiler /nologo /target:winexe /platform:x64 /optimize+ "/win32icon:$(Join-Path $PSScriptRoot 'assets\installer.ico')" "/out:$temporarySetup" "/win32manifest:$(Join-Path $PSScriptRoot 'src\app.manifest')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/resource:$setupManifest,installer.json" "/resource:$publicKeyPath,package-public-key.xml" "/resource:$(Join-Path $PSScriptRoot 'assets\portheon-logo.png'),portheon-logo.png" "/resource:$(Join-Path $PSScriptRoot 'assets\overlay-logo.png'),overlay-logo.png" "/resource:$archiveTool,7z.exe" "/resource:$(Join-Path $SevenZipDirectory '7z.dll'),7z.dll" "/resource:$(Join-Path $SevenZipDirectory 'License.txt'),7zip-license.txt" @extraResources (Join-Path $PSScriptRoot 'src\Package.cs') (Join-Path $PSScriptRoot 'src\PackageInput.cs') (Join-Path $PSScriptRoot 'src\SignedPackage.cs') (Join-Path $PSScriptRoot 'src\Installer.cs') (Join-Path $PSScriptRoot 'src\PortheonDownloader.cs') (Join-Path $PSScriptRoot 'src\InstallLog.cs') (Join-Path $PSScriptRoot 'src\InstallationPerformance.cs') (Join-Path $PSScriptRoot 'src\AssemblyInfo.cs')
+        & $compiler /nologo /target:winexe /platform:x64 /optimize+ "/win32icon:$(Join-Path $PSScriptRoot 'assets\installer.ico')" "/out:$temporarySetup" "/win32manifest:$(Join-Path $PSScriptRoot 'src\app.manifest')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "/resource:$setupManifest,installer.json" "/resource:$publicKeyPath,package-public-key.xml" "/resource:$(Join-Path $PSScriptRoot 'assets\controller-icons-logo.png'),controller-icons-logo.png" "/resource:$(Join-Path $PSScriptRoot 'assets\overlay-logo.png'),overlay-logo.png" "/resource:$archiveTool,7z.exe" "/resource:$(Join-Path $SevenZipDirectory '7z.dll'),7z.dll" "/resource:$(Join-Path $SevenZipDirectory 'License.txt'),7zip-license.txt" @extraResources (Join-Path $PSScriptRoot 'src\Package.cs') (Join-Path $PSScriptRoot 'src\PackageInput.cs') (Join-Path $PSScriptRoot 'src\SignedPackage.cs') (Join-Path $PSScriptRoot 'src\Installer.cs') (Join-Path $PSScriptRoot 'src\PortheonDownloader.cs') (Join-Path $PSScriptRoot 'src\InstallLog.cs') (Join-Path $PSScriptRoot 'src\InstallationPerformance.cs') (Join-Path $PSScriptRoot 'src\AssemblyInfo.cs')
         if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
         Move-Item -LiteralPath $temporarySetup -Destination (Join-Path $OutputDirectory 'setup.exe') -Force
     } finally {

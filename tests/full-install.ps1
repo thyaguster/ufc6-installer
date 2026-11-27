@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent $PSScriptRoot
 $statePath = Join-Path $root '.build\full-test-state.json'
-$state = [ordered]@{ Status='WaitingForArchive'; ProcessId=$PID; StartedUtc=[DateTime]::UtcNow.ToString('o'); FinishedUtc=$null; Installation=$null; VerifiedFiles=0; XboxIcons='Pending'; Gameplay='Pending interactive launch and in-game check'; Error=$null }
+$state = [ordered]@{ Status='WaitingForArchive'; ProcessId=$PID; StartedUtc=[DateTime]::UtcNow.ToString('o'); FinishedUtc=$null; Installation=$null; VerifiedFiles=0; Gameplay='Pending interactive launch and in-game check'; Error=$null }
 function Save-State { $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8 }
 Save-State
 try {
@@ -42,19 +42,6 @@ try {
         if ((Get-FileHash -LiteralPath $entry.Value.FullName -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash) { throw "Full installation hash mismatch: $($entry.Key)" }
         $state.VerifiedFiles++; if ($state.VerifiedFiles % 5 -eq 0) { Save-State }
     }
-    $state.Status = 'TestingXboxIcons'; Save-State
-    $patcher = Join-Path $session 'UFC6-Xbox-Icons.exe'
-    $assembly = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($exe))
-    $input = $assembly.GetManifestResourceStream('xbox-icons.exe')
-    try { $output = [IO.File]::Create($patcher); try { $input.CopyTo($output) } finally { $output.Dispose() } } finally { $input.Dispose() }
-    foreach ($action in @('install','status','restore')) {
-        $report = Join-Path $session ("xbox-$action.json")
-        $process = Start-Process -FilePath $patcher -ArgumentList @("--$action", '--game-dir', ('"' + $destination + '"'), '--report', ('"' + $report + '"')) -WindowStyle Hidden -Wait -PassThru
-        $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
-        if ($process.ExitCode -ne 0 -or !$result.success) { throw "Xbox $action failed: $($result.messages -join ' ')" }
-        if ($action -eq 'status' -and ($result.messages -join ' ') -notmatch '430/430 ranges installed') { throw 'The full-game Xbox patch status did not verify all 430 ranges.' }
-    }
-    $state.XboxIcons = 'Install, all 430 ranges, and restoration passed on full game'
     $state.Status = 'InstallationVerified'; $state.FinishedUtc = [DateTime]::UtcNow.ToString('o'); Save-State
     Write-Host "Full installation verified: $destination"
     Write-Host 'Gameplay remains pending an interactive PORTHEON launch and in-game check.'

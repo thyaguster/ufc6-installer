@@ -88,7 +88,7 @@ internal static class Program
                     int previewPage;
                     if (args.Length >= 7 && Int32.TryParse(args[6], out previewPage)) form.ShowPage(previewPage);
                     if (Array.IndexOf(args, "offline") >= 0)
-                        form.SetOptionalToolsOnline(false, "No internet connection to GitHub · Optional tools are unavailable");
+                        form.SetOptionalToolsOnline(false, "No internet connection to GitHub · Mods are unavailable");
                     form.AutoScrollPosition = args.Length >= 6 && args[5] == "bottom" ? new Point(0, form.DisplayRectangle.Height) : Point.Empty;
                     Application.DoEvents();
                 }
@@ -557,7 +557,7 @@ internal sealed class StepIndicator : Control
                     transform.Translate(x - bounds.Left - bounds.Width / 2, 11 - bounds.Top - bounds.Height / 2);
                     glyph.Transform(transform); g.FillPath(brush, glyph);
                 }
-                g.DrawString(new[] { "GAME SETUP", "OPTIONAL TOOLS", "INSTALL" }[i], labelFont, brush, new RectangleF(x - 98, 23, 196, 15), format);
+                g.DrawString(new[] { "GAME SETUP", "MODS", "INSTALL" }[i], labelFont, brush, new RectangleF(x - 98, 23, 196, 15), format);
             }
         }
         g.Restore(state);
@@ -589,83 +589,6 @@ internal sealed class InfoCard : Panel
     }
 }
 
-internal sealed class ButtonIconChoice : RadioButton
-{
-    internal bool Xbox;
-    private bool hover;
-    internal ButtonIconChoice()
-    {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        Appearance = Appearance.Button; AutoSize = false; AccessibleRole = AccessibleRole.RadioButton;
-        Cursor = Cursors.Hand;
-    }
-    protected override void OnCheckedChanged(EventArgs e) { base.OnCheckedChanged(e); Invalidate(); }
-    protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Invalidate(); }
-    protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
-    protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
-    protected override void OnMouseEnter(EventArgs e) { hover = true; base.OnMouseEnter(e); Invalidate(); }
-    protected override void OnMouseLeave(EventArgs e) { hover = false; base.OnMouseLeave(e); Invalidate(); }
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
-        var state = g.Save(); float scale = Width / 278f; g.ScaleTransform(scale, scale);
-        float logicalHeight = Height / scale;
-        Color accent = Color.FromArgb(241, 49, 65), muted = Color.FromArgb(156, 160, 173);
-        Color surface = Checked && Enabled ? Color.FromArgb(54, 33, 42) : hover && Enabled ? Color.FromArgb(43, 46, 55) : Color.FromArgb(27, 29, 36);
-        g.Clear(Parent == null ? Color.FromArgb(33, 35, 42) : Parent.BackColor);
-        using (var outline = RoundedBox.Path(new RectangleF(1, 1, 276, logicalHeight - 2), 8))
-        {
-            using (var brush = new SolidBrush(surface)) g.FillPath(brush, outline);
-            using (var pen = new Pen(Checked && Enabled ? accent : Color.FromArgb(65, 69, 81), Checked ? 1.5f : 1f)) g.DrawPath(pen, outline);
-        }
-        using (var pen = new Pen(Checked && Enabled ? accent : muted, 1.4f)) g.DrawEllipse(pen, 15, 12, 11, 11);
-        if (Checked) using (var brush = new SolidBrush(Enabled ? accent : muted)) g.FillEllipse(brush, 18, 15, 5, 5);
-        using (var font = new Font("Segoe UI", 14, FontStyle.Bold, GraphicsUnit.Pixel))
-        using (var brush = new SolidBrush(Enabled ? Color.White : muted)) g.DrawString(Text, font, brush, 33, 8);
-        using (var font = new Font("Segoe UI", 9, FontStyle.Bold, GraphicsUnit.Pixel))
-        using (var brush = new SolidBrush(muted)) g.DrawString(Xbox ? "MOD" : "DEFAULT", font, brush, 219, 13);
-        Color[] colors = Xbox ? new[] { Color.FromArgb(113, 207, 133), Color.FromArgb(244, 117, 125), Color.FromArgb(117, 177, 247), Color.FromArgb(244, 205, 100) }
-            : new[] { Color.FromArgb(99, 211, 177), Color.FromArgb(242, 129, 154), Color.FromArgb(124, 177, 247), Color.FromArgb(209, 151, 222) };
-        for (int i = 0; i < 4; i++)
-        {
-            float x = 16 + i * 32, y = logicalHeight <= 64 ? 31 : 39; Color color = Enabled ? colors[i] : muted;
-            // Optical sizing: PS shapes fill their bounds more strongly than
-            // lettered circles, so inset them while preserving the same centers.
-            float iconSize = Xbox ? 20 : 16;
-            float inset = (20 - iconSize) / 2;
-            var icon = new RectangleF(x + 0.5f + inset, y + 0.5f + inset, iconSize, iconSize);
-            using (var pen = new Pen(color, 1.7f))
-            {
-                pen.LineJoin = LineJoin.Round; pen.StartCap = pen.EndCap = LineCap.Round;
-                if (Xbox)
-                {
-                    g.DrawEllipse(pen, icon);
-                    // Center the actual glyph outline, rather than the font's
-                    // padded text rectangle, so every letter sits squarely.
-                    using (var family = new FontFamily("Arial"))
-                    using (var glyph = new GraphicsPath())
-                    using (var brush = new SolidBrush(color))
-                    using (var transform = new Matrix())
-                    {
-                        glyph.AddString("ABXY"[i].ToString(), family, (int)FontStyle.Bold, 14f, PointF.Empty, StringFormat.GenericTypographic);
-                        RectangleF bounds = glyph.GetBounds();
-                        transform.Translate(icon.Left + icon.Width / 2 - bounds.Left - bounds.Width / 2, icon.Top + icon.Height / 2 - bounds.Top - bounds.Height / 2);
-                        glyph.Transform(transform); g.FillPath(brush, glyph);
-                    }
-                }
-                else if (i == 0) g.DrawPolygon(pen, new[] { new PointF(icon.Left + icon.Width / 2, icon.Top), new PointF(icon.Right, icon.Bottom), new PointF(icon.Left, icon.Bottom) });
-                else if (i == 1) g.DrawEllipse(pen, icon);
-                else if (i == 2) { g.DrawLine(pen, icon.Left, icon.Top, icon.Right, icon.Bottom); g.DrawLine(pen, icon.Right, icon.Top, icon.Left, icon.Bottom); }
-                else g.DrawRectangle(pen, icon.X, icon.Y, icon.Width, icon.Height);
-            }
-        }
-        using (var font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel))
-        using (var brush = new SolidBrush(muted)) g.DrawString(Xbox ? "Applies mod" : "Original icons", font, brush, 158, logicalHeight <= 64 ? 35 : 43);
-        g.Restore(state);
-        if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(g, new Rectangle(4, 4, Width - 8, Height - 8), Color.White, surface);
-    }
-}
-
 internal sealed class InstallerForm : Form
 {
     private static readonly Color Background = Color.FromArgb(24, 25, 30);
@@ -680,7 +603,7 @@ internal sealed class InstallerForm : Form
     private readonly Panel[] pages = { new Panel(), new Panel(), new Panel() };
     private readonly StepIndicator steps = new StepIndicator();
     private readonly Label pageTitle = new Label();
-    private Label summaryDestination, summaryAlterEgos, summaryIcons, summaryTools, summaryTotals;
+    private Label summaryDestination, summaryAlterEgos, summaryInstall, summaryTools, summaryTotals;
     private int currentPage;
     private readonly InstallProgress progress = new InstallProgress();
     private readonly Label status = new Label();
@@ -691,8 +614,6 @@ internal sealed class InstallerForm : Form
     private readonly Label modeHint = new Label();
     private readonly Label description = new Label();
     private readonly CheckBox alterEgos = new PillSwitch();
-    private readonly ButtonIconChoice playStationIcons = new ButtonIconChoice();
-    private readonly ButtonIconChoice xboxIcons = new ButtonIconChoice { Xbox = true };
     private readonly CheckBox installPortheon = new PillSwitch();
     private readonly CheckBox installOverlay = new PillSwitch();
     private readonly Button overlayGithub = new SoftButton();
@@ -701,7 +622,7 @@ internal sealed class InstallerForm : Form
     private readonly Label optionalToolsStatus = new Label();
     private readonly PictureBox overlayLogo = new PictureBox();
     private readonly Button playNow = new SoftButton();
-    private readonly PictureBox portheonLogo = new PictureBox();
+    private readonly PictureBox secondModLogo = new PictureBox();
     private InfoCard overlayPanel;
     private InfoCard launcherPanel;
     private Label overlayTitle, overlayDescription, overlayNote, launcherTitle, launcherDescription, launcherNote;
@@ -786,7 +707,7 @@ internal sealed class InstallerForm : Form
         pageTitle.ForeColor = Color.White; Controls.Add(pageTitle);
         description.SetBounds(280, 107, 600, 25); description.ForeColor = Muted;
         description.Text = "Choose a destination to install your game files."; Controls.Add(description);
-        Stat("PACKAGE SIZE", Program.Size(Program.Package.ArchiveBytes + Program.Package.XboxIconsBytes), 280);
+        Stat("PACKAGE SIZE", Program.Size(Program.Package.ArchiveBytes), 280);
         installedSize = Stat("INSTALLED SIZE", Program.Size(Program.Package.UnpackedBytes), 484);
         fileCount = Stat("FILES TO INSTALL", Program.Package.FileCount.ToString("N0"), 688);
         var destinationCard = new InfoCard { Location = new Point(280, 222), Size = new Size(600, 124) }; Controls.Add(destinationCard);
@@ -810,13 +731,6 @@ internal sealed class InstallerForm : Form
         alterEgos.Cursor = Cursors.Hand; optionPanel.Controls.Add(alterEgos);
         LabelAt(optionPanel, alterEgos.Enabled ? "Apply the included Alter Egos files to the game." : "Not included in this package.", 16, 42, 550, 22, 9, Muted, FontStyle.Regular);
         alterEgos.CheckedChanged += delegate { RefreshReadiness(); };
-        var iconPanel = new InfoCard { Location = new Point(280, 440), Size = new Size(600, 116) }; Controls.Add(iconPanel);
-        LabelAt(iconPanel, "IN-GAME BUTTON ICONS", 16, 8, 560, 20, 9, Muted, FontStyle.Bold);
-        playStationIcons.Text = "PlayStation"; playStationIcons.SetBounds(16, 30, 278, 64); playStationIcons.Checked = true;
-        xboxIcons.Text = "Xbox"; xboxIcons.SetBounds(306, 30, 278, 64); xboxIcons.Enabled = Program.Package.XboxIconsBytes > 0;
-        foreach (var choice in new[] { playStationIcons, xboxIcons }) iconPanel.Controls.Add(choice);
-        LabelAt(iconPanel, "Button icons can be changed later in UFC 6 Parsectagon Overlay.", 16, 96, 568, 17, 8, Muted, FontStyle.Regular);
-        xboxIcons.CheckedChanged += delegate { RefreshReadiness(); };
         overlayPanel = new InfoCard { Location = new Point(280, 556), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(overlayPanel);
         overlayLogo.SetBounds(16, 14, 56, 56); overlayLogo.SizeMode = PictureBoxSizeMode.Zoom;
         using (var stream = Program.Assembly.GetManifestResourceStream("overlay-logo.png"))
@@ -835,15 +749,15 @@ internal sealed class InstallerForm : Form
         installOverlay.Font = new Font("Segoe UI", 10, FontStyle.Bold); installOverlay.Checked = false; overlayPanel.Controls.Add(installOverlay);
         LabelAt(overlayPanel, "Latest release · Internet required", 334, 167, 245, 17, 8, Muted, FontStyle.Regular);
         launcherPanel = new InfoCard { Location = new Point(280, 756), Size = new Size(600, 188), BackColor = Color.FromArgb(35, 38, 47), BorderColor = Color.FromArgb(78, 83, 98) }; Controls.Add(launcherPanel);
-        portheonLogo.SetBounds(16, 14, 56, 56); portheonLogo.SizeMode = PictureBoxSizeMode.Zoom;
-        using (var stream = Program.Assembly.GetManifestResourceStream("portheon-logo.png"))
-        using (var image = Image.FromStream(stream)) portheonLogo.Image = new Bitmap(image);
-        launcherPanel.Controls.Add(portheonLogo);
+        secondModLogo.SetBounds(16, 14, 56, 56); secondModLogo.SizeMode = PictureBoxSizeMode.Zoom;
+        using (var stream = Program.Assembly.GetManifestResourceStream("controller-icons-logo.png"))
+        using (var image = Image.FromStream(stream)) secondModLogo.Image = new Bitmap(image);
+        launcherPanel.Controls.Add(secondModLogo);
         LabelAt(launcherPanel, "OPTIONAL TOOL", 84, 12, 490, 20, 9, Accent, FontStyle.Bold);
-        launcherTitle = LabelAt(launcherPanel, "Play on PC with PORTHEON", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
+        launcherTitle = LabelAt(launcherPanel, "UFC Controller Icons Mod", 82, 33, 500, 37, 17, Color.White, FontStyle.Bold);
         var launcherInfo = new InfoCard { Location = new Point(16, 76), Size = new Size(568, 44), BackColor = Color.FromArgb(27, 29, 36), BorderColor = Color.FromArgb(48, 52, 62) }; launcherPanel.Controls.Add(launcherInfo);
-        launcherDescription = LabelAt(launcherInfo, "A free launcher for UFC 1–6 and other PC ports. It finds your games\nand chooses settings for your PC.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
-        launcherNote = LabelAt(launcherPanel, "Already have it? Use Play now on the final page after installation.", 16, 122, 565, 22, 9, Color.White, FontStyle.Regular);
+        launcherDescription = LabelAt(launcherInfo, "Change UFC 6 prompts to Xbox, PlayStation, Switch, or keyboard.\nIncludes reversible backups.", 10, 5, 548, 36, 9, Muted, FontStyle.Regular);
+        launcherNote = LabelAt(launcherPanel, "In the mod, choose UFC 6 or browse to the installed game folder.", 16, 122, 565, 22, 9, Color.White, FontStyle.Regular);
         ButtonAt(playNow, "Play now", 16, 146, 108, true); playNow.Height = 32;
         launcherPanel.Controls.Add(playNow); playNow.Enabled = false;
         playNow.Click += delegate { OpenPortheon(); };
@@ -900,7 +814,7 @@ internal sealed class InstallerForm : Form
         // Reuse the existing cards on three compact pages; choices survive navigation.
         foreach (var page in pages)
         { page.SetBounds(280, 180, 600, 420); page.BackColor = Background; Controls.Add(page); }
-        foreach (Control card in new Control[] { installedSize.Parent, fileCount.Parent, destinationCard, optionPanel, iconPanel })
+        foreach (Control card in new Control[] { installedSize.Parent, fileCount.Parent, destinationCard, optionPanel })
         { Point position = card.Location; pages[0].Controls.Add(card); card.Location = new Point(position.X - 280, position.Y - 136); }
         // The package size card is the remaining stat at the original position.
         Control packageCard = null;
@@ -925,11 +839,12 @@ internal sealed class InstallerForm : Form
         summaryDestination.AutoEllipsis = true;
         LabelAt(summaryCard, "ALTER EGOS", 16, 98, 270, 18, 8, Muted, FontStyle.Regular);
         summaryAlterEgos = LabelAt(summaryCard, "", 16, 117, 270, 25, 11, Color.White, FontStyle.Bold);
-        LabelAt(summaryCard, "BUTTON ICONS", 306, 98, 278, 18, 8, Muted, FontStyle.Regular);
-        summaryIcons = LabelAt(summaryCard, "", 306, 117, 278, 25, 11, Color.White, FontStyle.Bold);
+        LabelAt(summaryCard, "GAME INSTALLATION", 306, 98, 278, 18, 8, Muted, FontStyle.Regular);
+        summaryInstall = LabelAt(summaryCard, "", 306, 117, 278, 25, 11, Color.White, FontStyle.Bold);
         summaryCard.Controls.Add(new Panel { Location = new Point(16, 150), Size = new Size(568, 1), BackColor = Color.FromArgb(55, 59, 70) });
-        LabelAt(summaryCard, "OPTIONAL TOOLS", 16, 162, 124, 20, 8, Muted, FontStyle.Regular);
+        LabelAt(summaryCard, "MODS", 16, 162, 124, 20, 8, Muted, FontStyle.Regular);
         summaryTools = LabelAt(summaryCard, "", 144, 158, 440, 26, 10, Color.White, FontStyle.Bold);
+        summaryTools.AutoEllipsis = true;
         pages[2].Controls.Add(playNow); playNow.SetBounds(0, 378, 180, 36);
         LabelAt(pages[2], "Available after installation · Opens PORTHEON", 194, 386, 406, 24, 9, Muted, FontStyle.Regular);
         steps.SetBounds(280, 136, 600, 38); Controls.Add(steps);
@@ -957,9 +872,9 @@ internal sealed class InstallerForm : Form
         {
             pages[i].Visible = i == currentPage;
         }
-        steps.CurrentStep = currentPage; steps.AccessibleName = "Step " + (currentPage + 1) + " of 3: " + new[] { "Game setup", "Optional tools", "Install" }[currentPage]; steps.Invalidate();
+        steps.CurrentStep = currentPage; steps.AccessibleName = "Step " + (currentPage + 1) + " of 3: " + new[] { "Game setup", "Mods", "Install" }[currentPage]; steps.Invalidate();
         pageTitle.Text = new[] { "Make room for the fight.", "Make it your game.", "Ready for the fight." }[currentPage];
-        install.Text = currentPage == 2 ? (existingGameDetected ? "Set up optional tools" : "Install game") : "Next";
+        install.Text = currentPage == 2 ? (existingGameDetected ? "Set up mods" : "Install game") : "Next";
         back.Enabled = currentPage > 0;
         AutoScrollPosition = Point.Empty;
         RefreshReadiness();
@@ -969,7 +884,7 @@ internal sealed class InstallerForm : Form
 
     private async void CheckOptionalToolsAvailability()
     {
-        optionalToolsChecked = true; optionalToolsStatus.Text = "Checking access to optional tools…";
+        optionalToolsChecked = true; optionalToolsStatus.Text = "Checking access to mods…";
         overlayGithub.Enabled = portheonGithub.Enabled = installOverlay.Enabled = installPortheon.Enabled = false;
         optionalToolsCheck = new CancellationTokenSource();
         try
@@ -980,7 +895,7 @@ internal sealed class InstallerForm : Form
             if (online)
             {
                 try { config = await Task.Run(delegate { return PortheonDownloader.GetOptionalToolsConfig(optionalToolsCheck.Token); }); }
-                catch (Exception ex) { InstallLog.Write("Optional tools configuration unavailable: " + ex.Message); message = "Optional tool list unavailable · Game installation remains available"; }
+                catch (Exception ex) { InstallLog.Write("Mods configuration unavailable: " + ex.Message); message = "Mod list unavailable · Game installation remains available"; }
             }
             if (!IsDisposed && !optionalToolsCheck.IsCancellationRequested)
             {
@@ -1002,12 +917,12 @@ internal sealed class InstallerForm : Form
         if (online)
         {
             optionalToolsStatus.ForeColor = Green;
-            optionalToolsStatus.Text = message ?? "Optional tools loaded from GitHub";
+            optionalToolsStatus.Text = message ?? "Mods loaded from GitHub";
         }
         else
         {
             optionalToolsStatus.ForeColor = Accent;
-            optionalToolsStatus.Text = message ?? "No internet connection to GitHub · Optional tools are unavailable";
+            optionalToolsStatus.Text = message ?? "No internet connection to GitHub · Mods are unavailable";
         }
         if (summaryDestination != null) UpdateSummary();
     }
@@ -1021,12 +936,14 @@ internal sealed class InstallerForm : Form
         launcherPanel.Visible = toolSlots[1] != null;
         launcherPanel.Top = toolSlots[0] == null ? 0 : 200;
         optionalToolsStatus.Top = toolSlots[0] != null && toolSlots[1] != null ? 394 : (toolSlots[0] != null || toolSlots[1] != null ? 194 : 12);
-        if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = toolSlots[0].repository == "thyaguster/ufc6-parsectagon-overlay"; }
-        if (toolSlots[1] != null) { launcherTitle.Text = toolSlots[1].name; launcherDescription.Text = toolSlots[1].description; launcherNote.Text = toolSlots[1].note; portheonLogo.Visible = toolSlots[1].repository == "XAndromedaXR/PORTHEON"; }
+        bool overlayHasLogo = toolSlots[0] != null && toolSlots[0].repository == "thyaguster/ufc6-parsectagon-overlay";
+        bool secondHasLogo = toolSlots[1] != null && toolSlots[1].repository == "thyaguster/ufc-controller-icons-mod";
+        if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = overlayHasLogo; }
+        if (toolSlots[1] != null) { launcherTitle.Text = toolSlots[1].name; launcherDescription.Text = toolSlots[1].description; launcherNote.Text = toolSlots[1].note; secondModLogo.Visible = secondHasLogo; }
         installOverlay.Visible = toolSlots[0] != null && toolSlots[0].installMode == "installer";
         installPortheon.Visible = toolSlots[1] != null && toolSlots[1].installMode == "installer";
-        overlayTitle.Left = overlayLogo.Visible ? 82 : 16;
-        launcherTitle.Left = portheonLogo.Visible ? 82 : 16;
+        overlayTitle.Left = overlayHasLogo ? 82 : 16;
+        launcherTitle.Left = secondHasLogo ? 82 : 16;
         SetOptionalToolsOnline(optionalToolsOnline, null);
         if (summaryDestination != null) UpdateSummary();
     }
@@ -1043,7 +960,7 @@ internal sealed class InstallerForm : Form
     {
         summaryDestination.Text = folder.Text;
         summaryAlterEgos.Text = existingGameDetected ? "Unchanged" : alterEgos.Checked ? "Included" : "Off";
-        summaryIcons.Text = existingGameDetected ? "Unchanged" : xboxIcons.Checked ? "Xbox" : "PlayStation";
+        summaryInstall.Text = existingGameDetected ? "Keep existing game" : "Install game files";
         summaryTools.Text = (installOverlay.Checked && toolSlots[0] != null ? toolSlots[0].name : "") +
             (installOverlay.Checked && installPortheon.Checked ? " + " : "") + (installPortheon.Checked && toolSlots[1] != null ? toolSlots[1].name : "") +
             (!installOverlay.Checked && !installPortheon.Checked ? "None selected" : "");
@@ -1094,7 +1011,7 @@ internal sealed class InstallerForm : Form
             {
                 if (File.Exists(path)) throw new IOException("This path is an existing file. Choose a new folder name.");
                 var drive = new DriveInfo(Path.GetPathRoot(path));
-                long required = Program.RequiredSpace(alterEgos.Checked, xboxIcons.Checked);
+                long required = Program.RequiredSpace(alterEgos.Checked);
                 space.Text = Program.Size(drive.AvailableFreeSpace) + " free on " + drive.Name + "  ·  " + Program.Size(required) + " required";
                 space.ForeColor = Green;
                 if (drive.AvailableFreeSpace < required) throw new IOException("Not enough space on this drive. Choose another destination.");
@@ -1104,15 +1021,13 @@ internal sealed class InstallerForm : Form
         catch (Exception ex)
         { space.Text = ex.Message; space.ForeColor = Accent; }
         alterEgos.Enabled = !existingGameDetected && Program.Package.AlterEgosArchiveBytes > 0;
-        playStationIcons.Enabled = !existingGameDetected;
-        xboxIcons.Enabled = !existingGameDetected && Program.Package.XboxIconsBytes > 0;
-        installedSize.Text = existingGameDetected ? "Unchanged" : (xboxIcons.Checked ? "~" : "") + Program.Size(Program.Package.UnpackedBytes + (alterEgos.Checked ? Program.Package.AlterEgosInstalledDeltaBytes : 0) + (xboxIcons.Checked ? Program.XboxOverhead : 0));
-        fileCount.Text = existingGameDetected ? "Unchanged" : (Program.Package.FileCount + (alterEgos.Checked ? Program.Package.AlterEgosFileDelta : 0) + (xboxIcons.Checked ? 2 : 0)).ToString("N0");
+        installedSize.Text = existingGameDetected ? "Unchanged" : Program.Size(Program.Package.UnpackedBytes + (alterEgos.Checked ? Program.Package.AlterEgosInstalledDeltaBytes : 0));
+        fileCount.Text = existingGameDetected ? "Unchanged" : (Program.Package.FileCount + (alterEgos.Checked ? Program.Package.AlterEgosFileDelta : 0)).ToString("N0");
         bool packageReady = false;
         try { packageReady = Program.PackageError == null && Program.PackageSource != null && Program.PackageSource.Length == Program.Package.ArchiveBytes; } catch (IOException) { }
         bool hasOptionalTool = installOverlay.Checked || installPortheon.Checked;
         install.Enabled = currentPage < 2 ? valid || !packageReady : valid && packageReady && (!existingGameDetected || hasOptionalTool);
-        if (currentPage == 2) install.Text = existingGameDetected ? "Set up optional tools" : "Install game";
+        if (currentPage == 2) install.Text = existingGameDetected ? "Set up mods" : "Install game";
         UpdateSummary();
         if (!packageReady)
         {
@@ -1121,7 +1036,7 @@ internal sealed class InstallerForm : Form
         }
         else
         {
-            description.Text = currentPage == 0 ? (existingGameDetected ? "Existing game detected. Only optional tools can be set up." : "Choose a destination and your game options.") : currentPage == 1 ? "Optional downloads from the official GitHub releases." : existingGameDetected ? "Existing game detected. Select at least one optional tool to continue." : "Review your choices, then install your game files.";
+            description.Text = currentPage == 0 ? (existingGameDetected ? "Existing game detected. You can set up mods without reinstalling." : "Choose a destination and your game options.") : currentPage == 1 ? "Choose mods from their official GitHub releases." : existingGameDetected ? "Existing game detected. Select at least one mod to continue." : "Review your choices, then install your game files.";
             if (currentPage == 2 && !valid) description.Text = space.Text;
             if (!attempted) { status.Text = valid ? (existingGameDetected ? "Existing game ready" : "Ready to install") : "Check your destination"; status.ForeColor = valid ? Green : Accent; }
         }
@@ -1146,22 +1061,19 @@ internal sealed class InstallerForm : Form
             launcherPending = installPortheon.Checked; overlayPending = installOverlay.Checked;
             installOverlay.Enabled = installPortheon.Enabled = false;
             browse.Enabled = folder.Enabled = alterEgos.Enabled = false;
-            playStationIcons.Enabled = xboxIcons.Enabled = false;
             back.Enabled = false;
             status.Text = "Existing game ready"; status.ForeColor = Green;
-            description.Text = "Game files will not be changed. Preparing selected optional tools.";
+            description.Text = "Game files will not be changed. Preparing selected mods.";
             timing.Text = "Existing UFC 6 installation detected.";
             InstallLog.Write("Existing UFC 6 installation detected; game extraction skipped.");
             await StartOptionalSetups();
             return;
         }
         bool withAlterEgos = alterEgos.Checked;
-        bool withXboxIcons = xboxIcons.Checked;
         InstallLog.PortheonRequested = installPortheon.Checked;
         InstallLog.OverlayRequested = installOverlay.Checked;
         installOverlay.Enabled = false;
         installPortheon.Enabled = false;
-        playStationIcons.Enabled = xboxIcons.Enabled = false;
         back.Enabled = false;
         attempted = true; running = true; install.Enabled = browse.Enabled = folder.Enabled = alterEgos.Enabled = false;
         cancel.Text = "Cancel"; cancel.Enabled = true; cancellation = new CancellationTokenSource();
@@ -1170,15 +1082,15 @@ internal sealed class InstallerForm : Form
         var updates = new Progress<Tuple<int, string>>(delegate(Tuple<int, string> value)
         {
             if (!running || phase == 4 || cancellation.IsCancellationRequested) return;
-            int nextPhase = value.Item2 == "Installing Xbox button icons..." ? 3 : value.Item2 == "Installing Alter Egos..." ? 2 : value.Item1 < 10 ? 0 : 1;
+            int nextPhase = value.Item2 == "Installing Alter Egos..." ? 2 : value.Item1 < 10 ? 0 : 1;
             if (phase != nextPhase) { phase = nextPhase; phaseElapsed.Restart(); }
             phasePercent = phase == 0 ? value.Item1 * 10 : phase == 2 ? Math.Min(100, (value.Item1 - 90) * 100.0 / 9) : Math.Min(100, (value.Item1 - 10) * 100.0 / (withAlterEgos ? 79 : 89));
             progress.Value = value.Item1; progress.Invalidate(); percent.Text = value.Item1 + "%";
-            status.Text = phase == 0 ? "01  /  Checking package" : phase == 3 ? (withAlterEgos ? "04" : "03") + "  /  Installing Xbox button icons" : phase == 2 ? "03  /  Installing Alter Egos" : "02  /  Installing game files"; UpdateTiming();
+            status.Text = phase == 0 ? "01  /  Checking package" : phase == 2 ? "03  /  Installing Alter Egos" : "02  /  Installing game files"; UpdateTiming();
         });
         try
         {
-            await Task.Run(delegate { Program.Install(installedDestination, cancellation.Token, delegate(int p, string s) { ((IProgress<Tuple<int, string>>)updates).Report(Tuple.Create(p, s)); }, withAlterEgos, withXboxIcons); });
+            await Task.Run(delegate { Program.Install(installedDestination, cancellation.Token, delegate(int p, string s) { ((IProgress<Tuple<int, string>>)updates).Report(Tuple.Create(p, s)); }, withAlterEgos); });
             complete = true; status.Text = "Installation complete"; status.ForeColor = Green;
             progress.Value = 100; progress.Finished = true; progress.Invalidate(); percent.Text = "100%";
             description.Text = "Your game files are ready in the selected folder.";
@@ -1191,7 +1103,6 @@ internal sealed class InstallerForm : Form
             running = false; elapsed.Stop(); phaseElapsed.Stop(); cancellation.Dispose(); cancellation = null;
             browse.Enabled = folder.Enabled = !complete; cancel.Enabled = true;
             alterEgos.Enabled = !complete && Program.Package.AlterEgosArchiveBytes > 0;
-            playStationIcons.Enabled = !complete; xboxIcons.Enabled = !complete && Program.Package.XboxIconsBytes > 0;
             playNow.Enabled = complete;
             performanceMode.Enabled = !complete;
             if (!complete) { back.Enabled = true; cancel.Text = "Close"; RefreshReadiness(); } else install.Enabled = true;
@@ -1444,5 +1355,5 @@ internal sealed class InstallerForm : Form
         }
     }
     protected override void Dispose(bool disposing)
-        { if (disposing) { timer.Dispose(); if (optionalToolsCheck != null) { optionalToolsCheck.Cancel(); optionalToolsCheck.Dispose(); } if (portheonLogo.Image != null) portheonLogo.Image.Dispose(); if (overlayLogo.Image != null) overlayLogo.Image.Dispose(); } base.Dispose(disposing); }
+        { if (disposing) { timer.Dispose(); if (optionalToolsCheck != null) { optionalToolsCheck.Cancel(); optionalToolsCheck.Dispose(); } if (secondModLogo.Image != null) secondModLogo.Image.Dispose(); if (overlayLogo.Image != null) overlayLogo.Image.Dispose(); } base.Dispose(disposing); }
 }

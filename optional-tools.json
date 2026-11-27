@@ -15,15 +15,16 @@
       "installerPattern": "UFC6-Parsectagon-Overlay-Setup-*.exe"
     },
     {
-      "enabled": false,
-      "name": "PORTHEON",
-      "description": "A free launcher for UFC 1–6 and other PC ports. It finds your games and chooses settings for your PC.",
-      "note": "Already have it? Use Play now after installing the game.",
-      "instructions": "Run the setup and follow its prompts. Open PORTHEON, choose UFC 6, and point Game files to your installed UFC 6 folder if it is not found automatically.",
+      "enabled": true,
+      "name": "UFC Controller Icons Mod",
+      "description": "Change UFC 6 button prompts to Xbox, PlayStation, Switch, or keyboard styles. Includes reversible backups.",
+      "note": "In the mod, choose UFC 6 or browse to the installed game folder.",
+      "instructions": "Close UFC 6 and its emulator. Open the mod, choose UFC 6 or Browse Folder to select the extracted game folder, then choose MENUS and MOVES presets. Click Install. To restore the original prompts later, choose PlayStation Stock for both and click Restore PlayStation. Keep the backup files created in the game folder.",
       "installMode": "installer",
-      "installOrder": 10,
-      "repository": "XAndromedaXR/PORTHEON",
-      "installerPattern": "PORTHEON-*-Setup.exe"
+      "installOrder": 30,
+      "repository": "thyaguster/ufc-controller-icons-mod",
+      "installerPattern": "UFC_Controller_Icons_Mod.exe",
+      "detectedFile": "{gameFolder}\\.ufc6-input-icons-state.json"
     }
   ]
 }

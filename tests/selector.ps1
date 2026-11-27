@@ -8,15 +8,8 @@ try {
     $configJson = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\optional-tools.json') -Raw
     $configured = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]$configJson))
     $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($configured))
-    $playStation = $form.GetType().GetField('playStationIcons', $flags).GetValue($form)
-    $xbox = $form.GetType().GetField('xboxIcons', $flags).GetValue($form)
-    if (!$playStation.Checked -or $xbox.Checked) { throw 'PlayStation was not selected by default.' }
-    $click = [Windows.Forms.RadioButton].GetMethod('OnClick', $flags)
-    $click.Invoke($xbox, @([EventArgs]::Empty))
-    if (!$xbox.Checked -or $playStation.Checked) { throw 'Clicking Xbox did not exclusively select it.' }
-    $click.Invoke($playStation, @([EventArgs]::Empty))
-    if (!$playStation.Checked -or $xbox.Checked) { throw 'Clicking PlayStation did not exclusively select it.' }
-    if ($playStation.AccessibleRole -ne 'RadioButton' -or $xbox.AccessibleRole -ne 'RadioButton') { throw 'Selector accessibility role was lost.' }
+    $form.GetType().GetField('optionalToolsChecked', $flags).SetValue($form, $true)
+    if ($form.GetType().GetField('xboxIcons', $flags) -or $form.GetType().GetField('playStationIcons', $flags)) { throw 'The game setup page still exposes an icon selector.' }
     $alterEgos = $form.GetType().GetField('alterEgos', $flags).GetValue($form)
     if (!$alterEgos.Checked) { throw 'Alter Egos switch is not enabled by default.' }
     $toggle = [Windows.Forms.CheckBox].GetMethod('OnClick', $flags)
@@ -25,40 +18,41 @@ try {
     $toggle.Invoke($alterEgos, @([EventArgs]::Empty))
     if (!$alterEgos.Checked -or $alterEgos.AccessibleRole -ne 'CheckButton') { throw 'Alter Egos switch did not turn on or lost its accessibility role.' }
     Write-Host 'PASS: pill switch defaults on, toggles off/on, and retains checkbox accessibility.'
-    $portheon = $form.GetType().GetField('installPortheon', $flags).GetValue($form)
+    $iconsMod = $form.GetType().GetField('installPortheon', $flags).GetValue($form)
     $launcherPanel = $form.GetType().GetField('launcherPanel', $flags).GetValue($form)
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(1))
-    if ($launcherPanel.Visible) { throw 'PORTHEON card should be disabled until GitHub enables it.' }
-    $enabledConfigJson = $configJson | ConvertFrom-Json
-    $enabledConfigJson.slots[1].enabled = $true
-    $enabledConfig = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]($enabledConfigJson | ConvertTo-Json -Depth 10)))
-    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($enabledConfig))
+    $toolSlots = $form.GetType().GetField('toolSlots', $flags).GetValue($form)
+    if ($null -eq $toolSlots[1]) { throw 'Controller Icons Mod card should be enabled by the GitHub configuration.' }
     $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
-    if (!$portheon.Enabled) { throw 'GitHub PORTHEON switch did not enable the card.' }
-    if ($portheon.Checked) { throw 'Optional PORTHEON switch should be off by default.' }
-    $toggle.Invoke($portheon, @([EventArgs]::Empty))
-    if (!$portheon.Checked) { throw 'PORTHEON switch did not turn on.' }
-    $toggle.Invoke($portheon, @([EventArgs]::Empty))
-    if ($portheon.Checked -or $portheon.AccessibleRole -ne 'CheckButton') { throw 'PORTHEON switch did not turn off or lost accessibility.' }
+    if (!$iconsMod.Enabled -or $iconsMod.Checked) { throw 'Controller Icons Mod switch should be available and off by default.' }
+    $toggle.Invoke($iconsMod, @([EventArgs]::Empty))
+    if (!$iconsMod.Checked) { throw 'Controller Icons Mod switch did not turn on.' }
+    $toggle.Invoke($iconsMod, @([EventArgs]::Empty))
+    if ($iconsMod.Checked -or $iconsMod.AccessibleRole -ne 'CheckButton') { throw 'Controller Icons Mod switch did not turn off or lost accessibility.' }
+    $disabledConfigJson = $configJson | ConvertFrom-Json
+    $disabledConfigJson.slots[1].enabled = $false
+    $disabledConfig = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]($disabledConfigJson | ConvertTo-Json -Depth 10)))
+    $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($disabledConfig))
+    $toolSlots = $form.GetType().GetField('toolSlots', $flags).GetValue($form)
+    if ($iconsMod.Enabled -or $null -ne $toolSlots[1]) { throw 'Disabling the second GitHub mod did not hide its card.' }
     $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($configured))
-    if ($portheon.Enabled -or $portheon.Checked) { throw 'GitHub PORTHEON switch did not hide the card.' }
-    Write-Host 'PASS: PORTHEON card defaults disabled, and its GitHub switch enables or hides it safely.'
+    Write-Host 'PASS: controller icons mod is available after the overlay and can be disabled remotely.'
     $overlay = $form.GetType().GetField('installOverlay', $flags).GetValue($form)
     if ($overlay.Checked) { throw 'Optional overlay switch should be off by default.' }
     $toggle.Invoke($overlay, @([EventArgs]::Empty))
     if (!$overlay.Checked) { throw 'Overlay switch did not turn on.' }
     $toggle.Invoke($overlay, @([EventArgs]::Empty))
     if ($overlay.Checked -or $overlay.AccessibleRole -ne 'CheckButton') { throw 'Overlay switch did not turn off or lost accessibility.' }
-    if ($overlay.Parent.Top -ge $portheon.Parent.Top) { throw 'Overlay card should appear before PORTHEON.' }
-    Write-Host 'PASS: overlay card precedes PORTHEON and its optional pill switch defaults off and toggles.'
+    if ($overlay.Parent.Top -ge $iconsMod.Parent.Top) { throw 'Overlay card should appear before Controller Icons Mod.' }
+    Write-Host 'PASS: overlay card precedes Controller Icons Mod and its optional pill switch defaults off and toggles.'
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(1))
-    $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($false, 'No internet connection to GitHub · Optional tools are unavailable'))
+    $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($false, 'No internet connection to GitHub · Mods are unavailable'))
     $status = $form.GetType().GetField('optionalToolsStatus', $flags).GetValue($form)
     $overlayGithub = $form.GetType().GetField('overlayGithub', $flags).GetValue($form)
     $portheonGithub = $form.GetType().GetField('portheonGithub', $flags).GetValue($form)
-    if ($overlay.Enabled -or $portheon.Enabled -or $overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'No internet connection') { throw 'Offline state did not disable optional tools or explain why.' }
+    if ($overlay.Enabled -or $iconsMod.Enabled -or $overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'No internet connection') { throw 'Offline state did not disable mods or explain why.' }
     $form.GetType().GetMethod('SetOptionalToolsOnline', $flags).Invoke($form, @($true, $null))
-    if (!$overlay.Enabled -or $portheon.Enabled -or !$overlayGithub.Enabled -or $portheonGithub.Enabled -or $status.Text -notmatch 'loaded from GitHub') { throw 'Online state did not respect the disabled second tool slot.' }
+    if (!$overlay.Enabled -or !$iconsMod.Enabled -or !$overlayGithub.Enabled -or !$portheonGithub.Enabled -or $status.Text -notmatch 'loaded from GitHub') { throw 'Online state did not restore both mods.' }
     $manualJson = '{"slots":[{"enabled":true,"name":"Replacement ZIP tool","description":"Install it yourself from GitHub","note":"Read the project instructions","instructions":"Download the ZIP, extract it, then copy its files into the game folder.","installMode":"github","repository":"example/replacement"},{"enabled":false}]}'
     $manualConfig = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]$manualJson))
     $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($manualConfig))
@@ -90,13 +84,17 @@ try {
     $back = $form.GetType().GetField('back', $flags).GetValue($form)
     $page = $form.GetType().GetField('currentPage', $flags)
     if ($page.GetValue($form) -ne 0 -or $back.Enabled -or $next.Text -ne 'Next') { throw 'Initial wizard navigation is incorrect.' }
-    $overlay.Checked = $true; $xbox.Checked = $true
+    $overlay.Checked = $true; $iconsMod.Checked = $true
     $next.PerformClick()
-    if ($page.GetValue($form) -ne 1 -or !$overlay.Visible -or $alterEgos.Visible) { throw 'Next did not show only optional tools.' }
+    if ($page.GetValue($form) -ne 1 -or !$overlay.Visible -or !$launcherPanel.Visible -or $alterEgos.Visible) { throw "Next did not show both mods: page=$($page.GetValue($form)), overlay=$($overlay.Visible), icons=$($launcherPanel.Visible), alter=$($alterEgos.Visible)" }
+    $qa = Join-Path ([IO.Path]::GetTempPath()) 'ufc6-installer-ui-qa'
+    New-Item -ItemType Directory -Path $qa -Force | Out-Null
+    $modsPreview = New-Object Drawing.Bitmap($form.Width, $form.Height)
+    try { $form.DrawToBitmap($modsPreview, [Drawing.Rectangle]::new([Drawing.Point]::Empty, $form.Size)); $modsPreview.Save((Join-Path $qa 'mods-page.png')) } finally { $modsPreview.Dispose() }
     $next.PerformClick()
     $summary = $form.GetType().GetField('summaryTools', $flags).GetValue($form)
     if ($page.GetValue($form) -ne 2 -or !$mode.Visible -or $overlay.Visible -or $next.Text -ne 'Install game') { throw 'Final installation page is incorrect.' }
-    if ($summary.Text -notmatch 'Parsectagon Overlay' -or $form.GetType().GetField('summaryIcons', $flags).GetValue($form).Text -ne 'Xbox') { throw 'Summary lost chosen options.' }
+    if ($summary.Text -notmatch 'Parsectagon Overlay' -or $summary.Text -notmatch 'Controller Icons Mod' -or $form.GetType().GetField('summaryInstall', $flags).GetValue($form).Text -ne 'Install game files') { throw 'Summary lost chosen options.' }
     if ($form.GetType().GetField('attempted', $flags).GetValue($form)) { throw 'Next started installation before confirmation.' }
     $destination = $form.GetType().GetField('folder', $flags).GetValue($form)
     $originalDestination = $destination.Text
@@ -108,27 +106,25 @@ try {
     Set-Content -LiteralPath (Join-Path $existingGame 'eboot.bin') -Value ''
     try {
         $destination.Text = $existingGame
-        if (!$next.Enabled -or $next.Text -ne 'Set up optional tools') { throw 'A detected UFC 6 installation did not enable the optional-tools path.' }
-        if ($alterEgos.Enabled -or $xbox.Enabled -or $playStation.Enabled) { throw 'Existing game options should be left unchanged.' }
+        if (!$next.Enabled -or $next.Text -ne 'Set up mods') { throw 'A detected UFC 6 installation did not enable the mods path.' }
+        if ($alterEgos.Enabled) { throw 'Existing game options should be left unchanged.' }
         if ($form.GetType().GetField('summaryAlterEgos', $flags).GetValue($form).Text -ne 'Unchanged') { throw 'Summary did not identify an existing game as unchanged.' }
     } finally {
         $destination.Text = $originalDestination
         Remove-Item -LiteralPath $existingGame -Recurse -Force -ErrorAction SilentlyContinue
     }
     $back.PerformClick(); $back.PerformClick()
-    if ($page.GetValue($form) -ne 0 -or !$overlay.Checked -or !$xbox.Checked) { throw 'Back navigation lost selected options.' }
+    if ($page.GetValue($form) -ne 0 -or !$overlay.Checked -or !$iconsMod.Checked) { throw 'Back navigation lost selected mods.' }
     $next.PerformClick(); $next.PerformClick()
     $running = $form.GetType().GetField('running', $flags)
     $running.SetValue($form, $true)
     $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @(0))
     if ($page.GetValue($form) -ne 2) { throw 'Navigation was allowed during installation.' }
     $running.SetValue($form, $false)
-    $overlay.Checked = $false; $playStation.Checked = $true
+    $overlay.Checked = $false; $iconsMod.Checked = $false
     Write-Host 'PASS: three-page navigation, page visibility, preserved choices, summary and navigation lock during installation.'
     $mode.GetType().GetMethod('ShowOptions', $flags).Invoke($mode, @())
     if (!$menu.Visible -or $menu.Items.Count -ne 3 -or !$menu.Items[1].Checked) { throw 'Mode popup did not open with Balanced checked.' }
-    $qa = Join-Path (Split-Path -Parent $PSScriptRoot) '.build\ui-qa'
-    New-Item -ItemType Directory -Path $qa -Force | Out-Null
     $bitmap = New-Object Drawing.Bitmap($menu.Width, $menu.Height)
     try { $menu.DrawToBitmap($bitmap, $menu.ClientRectangle); $bitmap.Save((Join-Path $qa 'performance-menu.png')) } finally { $bitmap.Dispose() }
     $menu.Items[2].PerformClick()
@@ -137,5 +133,5 @@ try {
     $mode.SelectedIndex = 1
     Write-Host 'PASS: dark dropdown popup, keyboard selection, accessibility value and live mode change.'
     Write-Host 'PASS: performance dropdown defaults to Balanced and applies mode changes.'
-    Write-Host 'PASS: actual installer defaults to PlayStation; Xbox and PlayStation cards select exclusively; radio accessibility retained.'
+    Write-Host 'PASS: game setup has no icon selector; both mod cards are configured through GitHub.'
 } finally { $form.Dispose() }

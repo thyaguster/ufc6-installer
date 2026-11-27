@@ -58,7 +58,6 @@ foreach ($case in $cases) {
         $form.GetType().GetMethod('ConfigureViewport', $flags).Invoke($form, @([Drawing.Size]::new($case.Width, $case.Height), [single]$case.Scale))
         $form.GetType().GetField('installOverlay', $flags).GetValue($form).Checked = $true
         $form.GetType().GetField('installPortheon', $flags).GetValue($form).Checked = $true
-        $form.GetType().GetField('xboxIcons', $flags).GetValue($form).Checked = $true
         $form.GetType().GetField('folder', $flags).GetValue($form).Text = 'C:\Games\' + ('Long destination folder\' * 8) + 'EA SPORTS UFC 6'
         foreach ($page in @(0, 1, 2)) {
             $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @($page))

@@ -67,12 +67,20 @@ internal static class PortheonDownloadTest
         if (PortheonDownloader.SelectInstaller(alternateRelease, config.slots[0]).name != "Project-1.exe") throw new Exception("Replacement project was not accepted.");
         alternateRelease.assets[0].browser_download_url = "https://github.com/other/project/releases/download/v1/Project-1.exe";
         try { PortheonDownloader.SelectInstaller(alternateRelease, config.slots[0]); throw new Exception("Wrong repository was accepted."); } catch (IOException) { }
+        var iconsSlot = new PortheonDownloader.ToolSlot { name = "UFC Controller Icons Mod", repository = "thyaguster/ufc-controller-icons-mod", installerPattern = "UFC_Controller_Icons_Mod.exe" };
+        var iconsRelease = new PortheonDownloader.Release { assets = new[] { new PortheonDownloader.Asset { name = "UFC_Controller_Icons_Mod.exe", size = 123,
+            digest = "sha256:" + new String('c', 64), browser_download_url = "https://github.com/thyaguster/ufc-controller-icons-mod/releases/download/v1.0.0/UFC_Controller_Icons_Mod.exe" } } };
+        if (PortheonDownloader.SelectInstaller(iconsRelease, iconsSlot).name != "UFC_Controller_Icons_Mod.exe") throw new Exception("Controller Icons Mod asset was not selected.");
+        iconsRelease.assets[0].browser_download_url = "https://github.com/another-owner/ufc-controller-icons-mod/releases/download/v1.0.0/UFC_Controller_Icons_Mod.exe";
+        try { PortheonDownloader.SelectInstaller(iconsRelease, iconsSlot); throw new Exception("Controller Icons Mod from another repository was accepted."); } catch (IOException) { }
         try { PortheonDownloader.ParseOptionalToolsConfig("not json"); throw new Exception("Invalid optional-tools configuration was accepted."); }
         catch (IOException) { }
         Console.WriteLine("PASS: official URL, stable release, asset selection, checksum requirements, hashing and pre-request cancellation.");
-        if (args.Length == 2 && (args[1] == "--live" || args[1] == "--live-overlay"))
+        if (args.Length == 2 && (args[1] == "--live" || args[1] == "--live-overlay" || args[1] == "--live-icons"))
         {
-            string file = PortheonDownloader.DownloadLatest(args[0], CancellationToken.None, delegate(int p, string s) { }, args[1] == "--live-overlay");
+            string file = args[1] == "--live-icons"
+                ? PortheonDownloader.DownloadLatest(args[0], CancellationToken.None, delegate(int p, string s) { }, iconsSlot)
+                : PortheonDownloader.DownloadLatest(args[0], CancellationToken.None, delegate(int p, string s) { }, args[1] == "--live-overlay");
             Console.WriteLine("PASS: downloaded latest official installer and verified published SHA-256: " + file);
             Console.WriteLine("Installer was NOT executed.");
         }
