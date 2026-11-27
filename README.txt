@@ -107,6 +107,11 @@ folder is read-only: setup skips game extraction and can be used only to manage
 the optional mods. Cancellation removes the temporary extraction. No admin
 access, shortcuts, registry entries or uninstaller are added. Install into a
 folder your Windows user can write to.
+If Windows temporarily locks an extracted file, setup retries the final folder
+move. If it still cannot move the folder, setup keeps the extracted game beside
+the chosen destination. Use Retry finish after releasing the lock; this does
+not verify or extract data.bin again. Open files opens the saved folder so it
+can also be moved manually to the destination.
 7-Zip and its license notice are embedded; license/source details are in About.
 
 The interface shows archive size, installed size, file count, and live available

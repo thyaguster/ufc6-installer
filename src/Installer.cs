@@ -18,6 +18,18 @@ internal sealed class InstallerSettings
     public string XboxIconsSha256 { get; set; }
 }
 
+internal sealed class InstallFinalizationException : IOException
+{
+    internal readonly string StagingPath;
+    internal readonly string DestinationPath;
+
+    internal InstallFinalizationException(string stagingPath, string destinationPath, Exception cause)
+        : base("The game files were extracted, but Windows could not move them into the destination. " +
+               "They are still at " + stagingPath + ". Close programs that may be using those files, " +
+               "then move that folder to " + destinationPath + ". Windows reported: " + cause.Message, cause)
+    { StagingPath = stagingPath; DestinationPath = destinationPath; }
+}
+
 internal static class Program
 {
     internal static readonly Assembly Assembly = Assembly.GetExecutingAssembly();
@@ -165,6 +177,7 @@ internal static class Program
             Directory.CreateDirectory(parent);
             string staging = Path.Combine(parent, ".ufc6-install-" + Guid.NewGuid().ToString("N"));
             string tools = Path.Combine(Path.GetTempPath(), "ufc6-setup-" + Guid.NewGuid().ToString("N"));
+            bool preserveStaging = false;
             try
             {
                 Directory.CreateDirectory(staging); Directory.CreateDirectory(tools);
@@ -212,17 +225,57 @@ internal static class Program
                 }
                 cancellation.ThrowIfCancellationRequested();
                 // Rename only after successful extraction; never merge into existing data.
-                Directory.Move(staging, destination);
+                progress(99, "Finalizing installation...");
+                try { MoveStagingWithRetry(staging, destination, cancellation); }
+                catch (IOException ex)
+                {
+                    preserveStaging = true;
+                    InstallLog.Write("Final move failed; extracted game preserved at " + staging);
+                    throw new InstallFinalizationException(staging, destination, ex);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    preserveStaging = true;
+                    InstallLog.Write("Final move denied; extracted game preserved at " + staging);
+                    throw new InstallFinalizationException(staging, destination, ex);
+                }
                 InstallLog.Write("SUCCESS: game installation finalized at " + destination);
                 progress(100, "Installation complete.");
             }
             finally
             {
                 // Only directories created with this invocation's random names are removed.
-                if (Directory.Exists(staging)) Directory.Delete(staging, true);
-                if (Directory.Exists(tools)) Directory.Delete(tools, true);
-                InstallLog.Write("Temporary extraction/tool directories cleaned.");
+                if (!preserveStaging) TryCleanTemporaryDirectory(staging);
+                TryCleanTemporaryDirectory(tools);
+                if (preserveStaging) InstallLog.Write("Extracted game preserved at " + staging);
             }
+            }
+        }
+    }
+
+    private static void TryCleanTemporaryDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        }
+        catch (IOException ex) { InstallLog.Write("Could not remove temporary directory " + path + ": " + ex.Message); }
+        catch (UnauthorizedAccessException ex) { InstallLog.Write("Could not remove temporary directory " + path + ": " + ex.Message); }
+    }
+
+    internal static void MoveStagingWithRetry(string staging, string destination, CancellationToken cancellation)
+    {
+        const int attempts = 10;
+        for (int attempt = 1; attempt <= attempts; attempt++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            try { Directory.Move(staging, destination); return; }
+            catch (Exception ex)
+            {
+                if (!(ex is IOException) && !(ex is UnauthorizedAccessException)) throw;
+                if (attempt == attempts || Directory.Exists(destination) || File.Exists(destination)) throw;
+                InstallLog.Write("Final move attempt " + attempt + " failed: " + ex.Message + "; retrying in 3 seconds.");
+                if (cancellation.WaitHandle.WaitOne(3000)) cancellation.ThrowIfCancellationRequested();
             }
         }
     }
@@ -685,6 +738,7 @@ internal sealed class InstallerForm : Form
     private int phase = -1;
     private double phasePercent;
     private string installedDestination;
+    private string preservedStaging;
 
     private Label LabelAt(Control parent, string text, int x, int y, int width, int height, float size, Color color, FontStyle style)
     {
@@ -838,11 +892,12 @@ internal sealed class InstallerForm : Form
         ButtonAt(back, "Back", 650, 637, 90, false);
         ButtonAt(install, "Next", 750, 637, 130, true);
         back.Click += delegate { ShowPage(currentPage - 1); };
-        install.Click += async delegate { if (complete) { if (launcherPending || overlayPending) await StartOptionalSetups(); else Close(); } else if (currentPage < 2) ShowPage(currentPage + 1); else await StartInstall(); };
+        install.Click += async delegate { if (complete) { if (launcherPending || overlayPending) await StartOptionalSetups(); else Close(); } else if (preservedStaging != null) await RetryFinalMove(); else if (currentPage < 2) ShowPage(currentPage + 1); else await StartInstall(); };
         cancel.Click += delegate
         {
             if (running) CancelInstallation();
             else if (complete) Process.Start(new ProcessStartInfo(installedDestination) { UseShellExecute = true });
+            else if (preservedStaging != null) Process.Start(new ProcessStartInfo(preservedStaging) { UseShellExecute = true });
             else Close();
         };
         folder.TextChanged += delegate { RefreshReadiness(); };
@@ -904,7 +959,7 @@ internal sealed class InstallerForm : Form
 
     internal void ShowPage(int index)
     {
-        if (running || complete) return;
+        if (running || complete || preservedStaging != null) return;
         currentPage = Math.Max(0, Math.Min(2, index));
         for (int i = 0; i < pages.Length; i++)
         {
@@ -1126,11 +1181,11 @@ internal sealed class InstallerForm : Form
         var updates = new Progress<Tuple<int, string>>(delegate(Tuple<int, string> value)
         {
             if (!running || phase == 4 || cancellation.IsCancellationRequested) return;
-            int nextPhase = value.Item2 == "Installing Alter Egos..." ? 2 : value.Item1 < 10 ? 0 : 1;
+            int nextPhase = value.Item2 == "Finalizing installation..." ? 5 : value.Item2 == "Installing Alter Egos..." ? 2 : value.Item1 < 10 ? 0 : 1;
             if (phase != nextPhase) { phase = nextPhase; phaseElapsed.Restart(); }
             phasePercent = phase == 0 ? value.Item1 * 10 : phase == 2 ? Math.Min(100, (value.Item1 - 90) * 100.0 / 9) : Math.Min(100, (value.Item1 - 10) * 100.0 / (withAlterEgos ? 79 : 89));
             progress.Value = value.Item1; progress.Invalidate(); percent.Text = value.Item1 + "%";
-            status.Text = phase == 0 ? "01  /  Checking package" : phase == 2 ? "03  /  Installing Alter Egos" : "02  /  Installing game files"; UpdateTiming();
+            status.Text = phase == 0 ? "01  /  Checking package" : phase == 2 ? "03  /  Installing Alter Egos" : phase == 5 ? "Finalizing installation" : "02  /  Installing game files"; UpdateTiming();
         });
         try
         {
@@ -1141,6 +1196,14 @@ internal sealed class InstallerForm : Form
             timing.Text = "Completed in " + Duration(elapsed.Elapsed) + "."; install.Text = "Finish"; cancel.Text = "Open folder";
         }
         catch (OperationCanceledException) { InstallLog.Write("CANCELLED: partial installation cleaned up."); status.Text = "Installation cancelled"; status.ForeColor = Muted; timing.Text = "Temporary files removed. You can start again."; progress.Value = 0; progress.Invalidate(); percent.Text = "0%"; }
+        catch (InstallFinalizationException ex)
+        {
+            InstallLog.Failure(ex); preservedStaging = ex.StagingPath;
+            status.Text = "Game extracted; final move failed"; status.ForeColor = Accent;
+            timing.Text = "Files kept. Open them below and move the folder when the lock clears.";
+            description.Text = "The game files are ready, but Windows blocked the final folder move.";
+            MessageBox.Show(this, ex.Message + "\n\nDiagnostic log: " + InstallLog.FilePath, "Finish installation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
         catch (Exception ex) { InstallLog.Failure(ex); status.Text = "Installation could not complete"; status.ForeColor = Accent; timing.Text = "Resolve the problem, then try again. See View log for details."; MessageBox.Show(this, ex.Message + "\n\nDiagnostic log: " + InstallLog.FilePath, "Setup", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         finally
         {
@@ -1149,9 +1212,50 @@ internal sealed class InstallerForm : Form
             alterEgos.Enabled = !complete && Program.Package.AlterEgosArchiveBytes > 0;
             playNow.Enabled = complete;
             performanceMode.Enabled = !complete;
-            if (!complete) { back.Enabled = true; cancel.Text = "Close"; RefreshReadiness(); } else install.Enabled = true;
+            if (!complete && preservedStaging != null)
+            { back.Enabled = false; install.Enabled = true; install.Text = "Retry finish"; cancel.Text = "Open files"; }
+            else if (!complete) { back.Enabled = true; cancel.Text = "Close"; RefreshReadiness(); } else install.Enabled = true;
             installPortheon.Enabled = optionalToolsOnline && toolSlots[1] != null && toolSlots[1].installMode == "installer";
             installOverlay.Enabled = optionalToolsOnline && toolSlots[0] != null && toolSlots[0].installMode == "installer";
+        }
+        if (complete)
+        {
+            launcherPending = installPortheon.Checked; overlayPending = installOverlay.Checked;
+            if (launcherPending || overlayPending) await StartOptionalSetups();
+        }
+    }
+
+    private async Task RetryFinalMove()
+    {
+        string staging = preservedStaging;
+        if (staging == null) return;
+        running = true; install.Enabled = cancel.Enabled = false;
+        status.Text = "Retrying final move"; status.ForeColor = Color.White;
+        timing.Text = "Waiting for Windows to release the game folder…";
+        cancellation = new CancellationTokenSource();
+        try
+        {
+            if (!Directory.Exists(staging)) throw new IOException("The saved game folder is missing: " + staging);
+            await Task.Run(delegate { Program.MoveStagingWithRetry(staging, installedDestination, cancellation.Token); });
+            InstallLog.Write("SUCCESS: saved game installation finalized at " + installedDestination);
+            preservedStaging = null; complete = true;
+            status.Text = "Installation complete"; status.ForeColor = Green;
+            progress.Value = 100; progress.Finished = true; progress.Invalidate(); percent.Text = "100%";
+            description.Text = "Your game files are ready in the selected folder.";
+            timing.Text = "Saved game files moved into place.";
+            install.Text = "Finish"; cancel.Text = "Open folder"; playNow.Enabled = true;
+        }
+        catch (Exception ex)
+        {
+            InstallLog.Failure(ex); status.Text = "Final move still blocked"; status.ForeColor = Accent;
+            timing.Text = "Files are still saved. Close programs using them, then retry.";
+            MessageBox.Show(this, ex.Message + "\n\nSaved files: " + staging + "\nDiagnostic log: " + InstallLog.FilePath,
+                "Finish installation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            running = false; cancellation.Dispose(); cancellation = null;
+            cancel.Enabled = true; install.Enabled = true;
         }
         if (complete)
         {
@@ -1379,6 +1483,7 @@ internal sealed class InstallerForm : Form
         if (cancellation != null && cancellation.IsCancellationRequested) return;
         string remaining = "Estimating time for this step…";
         if (phase == 4) { timing.Text = "Optional setup elapsed " + Duration(elapsed.Elapsed) + "   ·   Game installation complete"; return; }
+        if (phase == 5) { timing.Text = "Elapsed " + Duration(elapsed.Elapsed) + "   ·   Waiting for Windows to release the game folder…"; return; }
         if (phase == 3) { timing.Text = "Elapsed " + Duration(elapsed.Elapsed) + "   ·   Applying and verifying button artwork…"; return; }
         if (phaseElapsed.Elapsed.TotalSeconds >= 5 && phasePercent > 0 && phasePercent < 100)
         {
