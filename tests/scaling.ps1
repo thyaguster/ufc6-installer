@@ -7,6 +7,8 @@ Add-Type 'using System.Runtime.InteropServices; public static class ScalingDpi {
 # Exercise real game-sized figures instead of only the small fixture values.
 $package.UnpackedBytes = 167610554470; $package.ArchiveBytes = 59876298006; $package.FileCount = 405
 $program.GetField('Package', [Reflection.BindingFlags]'NonPublic,Static').SetValue($null, $package)
+$configJson = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\optional-tools.json') -Raw
+$config = $assembly.GetType('PortheonDownloader').GetMethod('ParseOptionalToolsConfig', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, [object[]]@([string]$configJson))
 $issues = New-Object 'Collections.Generic.List[string]'
 function Check-Controls($Parent, [string]$Context) {
     foreach ($control in $Parent.Controls) {
@@ -44,6 +46,7 @@ $cases = @(
     @{Scale=1.0; Width=1280; Height=720},
     @{Scale=1.0; Width=1024; Height=600},
     @{Scale=1.25; Width=1366; Height=768},
+    @{Scale=1.25; Width=1920; Height=1080},
     @{Scale=1.5; Width=1366; Height=768},
     @{Scale=2.0; Width=1920; Height=1080}
 )
@@ -56,6 +59,19 @@ foreach ($case in $cases) {
         try { $actual = $graphics.DpiX / 96.0 } finally { $graphics.Dispose() }
         $form.GetType().GetMethod('ScalePreview', $flags).Invoke($form, @([single]($case.Scale / $actual)))
         $form.GetType().GetMethod('ConfigureViewport', $flags).Invoke($form, @([Drawing.Size]::new($case.Width, $case.Height), [single]$case.Scale))
+        $form.GetType().GetField('optionalToolsChecked', $flags).SetValue($form, $true)
+        $form.GetType().GetMethod('ApplyToolSlots', $flags).Invoke($form, @($config))
+        $firstCard = $form.GetType().GetField('overlayPanel', $flags).GetValue($form)
+        $secondCard = $form.GetType().GetField('launcherPanel', $flags).GetValue($form)
+        $modsStatus = $form.GetType().GetField('optionalToolsStatus', $flags).GetValue($form)
+        $firstTitle = $form.GetType().GetField('overlayTitle', $flags).GetValue($form)
+        $secondTitle = $form.GetType().GetField('launcherTitle', $flags).GetValue($form)
+        $firstLogo = $form.GetType().GetField('overlayLogo', $flags).GetValue($form)
+        $secondLogo = $form.GetType().GetField('secondModLogo', $flags).GetValue($form)
+        if ($secondCard.Top - $firstCard.Bottom -lt [Math]::Round(8 * $case.Scale) -or $modsStatus.Top -lt $secondCard.Bottom -or
+            $firstTitle.Left -le $firstLogo.Right -or $secondTitle.Left -le $secondLogo.Right) {
+            $issues.Add("$($case.Scale)x: remote mod cards, logos or status overlap after scaling")
+        }
         $form.GetType().GetField('installOverlay', $flags).GetValue($form).Checked = $true
         $form.GetType().GetField('installPortheon', $flags).GetValue($form).Checked = $true
         $form.GetType().GetField('folder', $flags).GetValue($form).Text = 'C:\Games\' + ('Long destination folder\' * 8) + 'EA SPORTS UFC 6'
@@ -63,6 +79,11 @@ foreach ($case in $cases) {
             $form.GetType().GetMethod('ShowPage', $flags).Invoke($form, @($page))
             [Windows.Forms.Application]::DoEvents()
             Check-Controls $form "$($case.Scale)x / page $($page + 1)"
+            if ($case.Scale -eq 1.25 -and $case.Width -eq 1920 -and $page -eq 1) {
+                $preview = Join-Path ([IO.Path]::GetTempPath()) 'ufc6-mods-page-125.png'
+                $bitmap = New-Object Drawing.Bitmap($form.Width, $form.Height)
+                try { $form.DrawToBitmap($bitmap, [Drawing.Rectangle]::new([Drawing.Point]::Empty, $form.Size)); $bitmap.Save($preview) } finally { $bitmap.Dispose() }
+            }
             $form.AutoScrollPosition = [Drawing.Point]::new(0, $form.DisplayRectangle.Height)
             [Windows.Forms.Application]::DoEvents()
             foreach ($field in @('install', 'back', 'cancel')) {

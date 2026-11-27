@@ -930,20 +930,23 @@ internal sealed class InstallerForm : Form
     internal void ApplyToolSlots(PortheonDownloader.OptionalToolsConfig config)
     {
         for (int i = 0; i < 2; i++) toolSlots[i] = config != null && config.slots[i].enabled ? config.slots[i] : null;
+        float scale = overlayPanel.Width / 600f;
+        int gap = (int)Math.Round(12 * scale);
         if (toolSlots[0] == null || toolSlots[0].installMode != "installer") { installOverlay.Checked = false; overlayPending = false; }
         if (toolSlots[1] == null || toolSlots[1].installMode != "installer") { installPortheon.Checked = false; launcherPending = false; }
         overlayPanel.Visible = toolSlots[0] != null;
         launcherPanel.Visible = toolSlots[1] != null;
-        launcherPanel.Top = toolSlots[0] == null ? 0 : 200;
-        optionalToolsStatus.Top = toolSlots[0] != null && toolSlots[1] != null ? 394 : (toolSlots[0] != null || toolSlots[1] != null ? 194 : 12);
+        launcherPanel.Top = toolSlots[0] == null ? 0 : overlayPanel.Bottom + gap;
+        optionalToolsStatus.Top = toolSlots[1] != null ? launcherPanel.Bottom + gap / 2 :
+            toolSlots[0] != null ? overlayPanel.Bottom + gap / 2 : gap;
         bool overlayHasLogo = toolSlots[0] != null && toolSlots[0].repository == "thyaguster/ufc6-parsectagon-overlay";
         bool secondHasLogo = toolSlots[1] != null && toolSlots[1].repository == "thyaguster/ufc-controller-icons-mod";
         if (toolSlots[0] != null) { overlayTitle.Text = toolSlots[0].name; overlayDescription.Text = toolSlots[0].description; overlayNote.Text = toolSlots[0].note; overlayLogo.Visible = overlayHasLogo; }
         if (toolSlots[1] != null) { launcherTitle.Text = toolSlots[1].name; launcherDescription.Text = toolSlots[1].description; launcherNote.Text = toolSlots[1].note; secondModLogo.Visible = secondHasLogo; }
         installOverlay.Visible = toolSlots[0] != null && toolSlots[0].installMode == "installer";
         installPortheon.Visible = toolSlots[1] != null && toolSlots[1].installMode == "installer";
-        overlayTitle.Left = overlayHasLogo ? 82 : 16;
-        launcherTitle.Left = secondHasLogo ? 82 : 16;
+        overlayTitle.Left = (int)Math.Round((overlayHasLogo ? 82 : 16) * scale);
+        launcherTitle.Left = (int)Math.Round((secondHasLogo ? 82 : 16) * scale);
         SetOptionalToolsOnline(optionalToolsOnline, null);
         if (summaryDestination != null) UpdateSummary();
     }
